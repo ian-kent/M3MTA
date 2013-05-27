@@ -21,6 +21,7 @@ sub respond {
 
     my $c = join ' ', @cmd;
     $stream->write("$c\n");
+    print "SENT: $c\n";
     return;
 }
 
@@ -29,7 +30,7 @@ sub accept {
 
     print "Accepted connection\n";
 
-    $self->respond($stream, 250, $self->hostname . " ESMTP Mojo::IOLoop Experimental SMTP Server");
+    $self->respond($stream, 220, $self->hostname . ".dc4 ESMTP Experimental SMTP Server");
 
     my $buffer = '';
     my $datamode = 0;
@@ -82,7 +83,7 @@ sub accept {
                     $auth->{password} = $password;
                     print "LOGIN: Username [" . $auth->{username} . "], Password [$password]\n";
 
-                    if(&{$self->user_auth}($auth->{username}, $password)) {
+                    if(!&{$self->user_auth}($auth->{username}, $password)) {
                         $self->respond($stream, 535, "LOGIN authentication failed");
                         $auth = {};
                     } else {
@@ -163,8 +164,9 @@ sub accept {
                     return;
                 }
                 $email->{helo} = $data;
-                $self->respond($stream, 250, "Hello '$data'. I'm an experimental SMTP server using Mojo::IOLoop");
-                $self->respond($stream, 250, "AUTH PLAIN LOGIN");
+                # Everything except last line has - between status and message
+                $self->respond($stream, "250-Hello '$data'. I'm an experimental SMTP server using Mojo::IOLoop");
+                $self->respond($stream, "250 AUTH PLAIN LOGIN");
             }
             when (/^AUTH$/) {
                 print "Got AUTH: $data\n";
@@ -200,12 +202,18 @@ sub accept {
                 }
                 if($data =~ /^From:\s*(.+)$/i) {
                     print "Checking user against $1\n";
-                    if(!&{$self->user_send}($auth, $1)) {
-                        $self->respond(535, "Not permitted to send from this address");
+                    my $r = eval {
+                        return &{$self->user_send}($auth, $1);
+                    };
+                    print "Error: $@\n" if $@;
+
+                    if(!$r) {
+                        $self->respond($stream, 535, "Not permitted to send from this address");
                         return;
                     }
                     $email->{from} = $1;
                     $self->respond($stream, 250, "$1 sender ok");
+                    #$self->respond($stream, 250, "2.1.0 Ok");
                     return;
                 }
                 $self->respond($stream, 501, "Invalid sender");
