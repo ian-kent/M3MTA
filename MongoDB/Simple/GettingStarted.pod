@@ -1,0 +1,177 @@
+=head1 NAME
+
+MongoDB::Simple::GettingStarted - A quick introduction to MongoDB::Simple
+
+=head1 QUICK START GUIDE
+
+Getting started with MongoDB::Simple is simple - that's the point!
+
+This short quick start guide demonstrates all of the features MongoDB::Simple has to offer.
+
+=head2 Document mapping
+
+First you need a class to represent your document.
+
+    package My::Data;
+    use MongoDB::Simple;
+    our @ISA = ('MongoDB::Simple');
+
+    # Declare your database and collection
+    database 'my_database';
+    collection 'my_collection';
+
+    # Basic scalar types
+    string 'name';
+    date 'created';
+    boolean 'active';
+
+    # Array types
+    array 'tags';
+    array 'email' => { type => 'My::Data::Email' };
+
+    # Arrays with multiple types are supported
+    array 'links' => { types => [
+        'My::Data::Link::URL',
+        'My::Data::Link::Email',
+    ] };
+
+    # Object/Hash types
+    object 'ids';
+    object 'profile' => { type => 'My::Data::Profile' };
+
+    # Names can clash with keywords
+    string 'string';
+    object 'boolean';
+
+    # You can add callbacks for changed data items
+    string 'status' => { changed => sub {
+        my ($self, $value) = @_;
+        # Gets called after the database save
+    } };
+
+    # If you need to, you can declare a custom locator (used for load/save)
+    #locator sub {
+    #    # @_ contains the arguments passed to load()
+    #    my ($self, $id) = @_; 
+    #    # The default locator returns a hash matching _id (either passed in or from the loaded document)
+    #    return {
+    #        '_id' => $id // $self->{doc}->{_id}
+    #    };
+    #}
+
+    package My::Data::Email;
+    use MongoDB::Simple;
+    our @ISA = ('MongoDB::Simple');
+
+    string 'email';
+
+    package My::Data::Profile;
+    use MongoDB::Simple;
+    our @ISA = ('MongoDB::Simple');
+
+    string 'title';
+
+    package My::Data::Link::URL;
+    use MongoDB::Simple;
+    our @ISA = ('MongoDB::Simple');
+
+    # We declare a sub that determines whether this class matches a document
+    # It's used when getting a value from a multi-type array
+    matches sub {
+        my ($doc) = @_;
+        return 1 if $doc->{url};
+        return 0;
+    };
+    
+    string 'url';
+
+    package My::Data::Link::Email;
+    our @ISA = ('My::Data::Email');
+
+    matches sub {
+        my ($doc) = @_;
+        return 1 if $doc->{email};
+        return 0;
+    };
+
+    1;
+
+That's it... nothing more required, except to use it!
+
+    use MongoDB::MongoClient;
+    use DateTime;
+    use boolean;
+    use My::Data;
+
+    my $client = new MongoDB::MongoClient;
+
+    my $data = new My::Data(client => $client);
+
+    # Setting simple scalar types
+    $data->name('My name');
+    $data->created(DateTime->now);
+    $data->active(true);
+
+    # Setting array types
+    $data->tags(['Foo','Bar']);
+    $data->email([
+        new My::Data::Email( email => 'foo@bar.com' ),
+        new My::Data::Email( email => 'bar@foo.com' ),
+    ]);
+    # You can also use the fields as arrays
+    push $data->tags, 'New tag';
+    unshift $data->tags, 'New tag'; # behaves like push unless you set $data->{forceUnshiftOperator} = 1
+
+    # Setting arrays with multiple types
+    $data->links([
+        new My::Data::Link::Email( email => 'baz@bar.com' ),
+        new My::Data::Link::URL( url => 'http://foo.com' ),
+    ]);
+
+    # Setting object types
+    $data->ids({
+        'my.user'  => 'somepassword',
+        'my.admin' => 'someotherpassword',
+    });
+    $data->ids->{'my.public'} = 'anotherpassword';
+    $data->profile( new My::Data::Profile );
+    $data->profile->title('My profile title');
+
+    # Saving the object
+    my $oid = $data->save;
+
+    # Now we can load it again
+    my $loaded = new My::Data(client => $client);
+    $loaded->load($oid);
+
+    # Getting scalar values
+    my $name = $loaded->name;
+    my $created = $loaded->created; # a DateTime object
+    my $active = $loaded->active; # a boolean object
+
+    # Getting array values
+    my $tag = $loaded->tags->[0];
+    my $email = $loaded->email->[0]; # a My::Data::Email object
+
+    # Also works as an array here
+    $tag = pop $loaded->tags;
+    $tag = shift $loaded->tags;
+
+    # And you can get multiple types
+    my $link1 = $loaded->links->[0]; # a My::Data::Link::Email object
+    my $link2 = $loaded->links->[1]; # a My::Data::Link::URL object
+
+    # Getting object values
+    my $user_password = $loaded->ids->{'my.user'};
+    my $profile_title = $loaded->profile->title;
+
+=head1 SYNTAX
+
+use MongoDB::Simple imports some helper keywords into your namespace:
+database, collection, string, date, boolean, array, object
+
+=head1 SCALARS
+
+=head1 ARRAYS
+
+=head1 OBJECTS AND HASHES

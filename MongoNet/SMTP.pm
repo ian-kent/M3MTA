@@ -15,6 +15,7 @@ has 'hostname'  => ( is => 'rw' );
 has 'queued'    => ( is => 'rw' );
 has 'user_auth' => ( is => 'rw' );
 has 'user_send' => ( is => 'rw' );
+has 'mail_accept' => ( is => 'rw' );
 
 sub respond {
     my ($self, $stream, @cmd) = @_;
@@ -83,12 +84,14 @@ sub accept {
                     $auth->{password} = $password;
                     print "LOGIN: Username [" . $auth->{username} . "], Password [$password]\n";
 
-                    if(!&{$self->user_auth}($auth->{username}, $password)) {
+                    my $user = &{$self->user_auth}($auth->{username}, $password);
+                    if(!$user) {
                         $self->respond($stream, 535, "LOGIN authentication failed");
                         $auth = {};
                     } else {
                         $self->respond($stream, 235, "authentication successful");
                         $auth->{success} = 1;
+                        $auth->{user} = $user;
                     }
                     $authtype = '';
                 }
@@ -115,6 +118,7 @@ sub accept {
                 my $password = $parts[2];
 
                 print "PLAIN: Username [$username], Identity [$identity], Password [$password]\n";
+
                 my $authed = &{$self->user_auth}($username, $password);
                 if(!$authed) {
                     print "Authed: $authed\n";
@@ -124,6 +128,7 @@ sub accept {
                     $self->respond($stream, 235, "authentication successful");
                     $auth->{username} = $username;
                     $auth->{password} = $password;
+                    $auth->{user} = $authed;
                     $auth->{success} = 1;
                 }
                 $authtype = '';
@@ -200,7 +205,7 @@ sub accept {
                     $self->respond($stream, 503, "MAIL command already received");
                     return;
                 }
-                if($data =~ /^From:\s*(.+)$/i) {
+                if($data =~ /^From:\s*<(.+)>$/i) {
                     print "Checking user against $1\n";
                     my $r = eval {
                         return &{$self->user_send}($auth, $1);
@@ -227,7 +232,18 @@ sub accept {
                     $self->respond($stream, 503, "DATA command already received");
                     return;
                 }
-                if($data =~ /^To:\s*(.+)$/i) {
+                if($data =~ /^To:\s*<(.+)>$/i) {
+                    print "Checking delivery for $1\n";
+                    my $r = eval {
+                        return &{$self->mail_accept}($auth, $1);
+                    };
+                    print "Error: $@\n" if $@;
+                    print "RESULT IS: $r\n";
+                    if(!$r) {
+                        $self->respond($stream, 501, "Not permitted to send to this address");
+                        return;
+                    }
+                    
                     push @{$email->{to}}, $1;
                     $self->respond($stream, 250, "$1 recipient ok");
                     return;

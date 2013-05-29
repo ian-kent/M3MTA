@@ -6,36 +6,32 @@ use DateTime;
 use MongoDB::MongoClient;
 use v5.14;
 
+use Data::Dumper;
+use Config::Any;
+
 use MongoNet::IMAP;
 use My::User;
 use My::Email;
 
-my @domains = ('iankent.co.uk');
-my @mailboxes = ('ian.kent@iankent.co.uk');
-my %mailbox_map = map { $_ => 1 } @mailboxes;
-my $client = MongoDB::MongoClient->new;
-my $hostname = `hostname`;
-chomp $hostname;
+# Load configuration
+my $config = Config::Any->load_files({ files => ['config.json'], use_ext => 1 })->[0]->{'config.json'}->{imap};
+my @ports = @{$config->{ports}};
 
-my @ports = (143); #, 993);
+# Get connection to database
+my $client = MongoDB::MongoClient->new;
+my $db = $client->get_database('mojosmtp');
+my $mailboxes = $db->get_collection('mailboxes');
 
 my $imap = new MongoNet::IMAP(
+    db => $db,
     user_auth => sub {
         my ($username, $password) = @_;
-        print "User auth\n";
+        print "User auth for username [$username] with password [$password]\n";
 
-        my $result = eval {
-            my $user = $client->get_database('mojosmtp')->get_collection('users')->find_one({username => $username, password => $password});
-            return 0 if !$user;
-            $user = $user->as('My::User');
-            if ($user && ($user->username eq $username) && ($user->password eq $password)) {
-                return 1;
-            }
-            return 0;
-        };
-
+        my $user = $mailboxes->find_one({username => $username, password => $password});
         print "Error: $@\n" if $@;
-        return $result;
+
+        return $user;
     },
 );
 

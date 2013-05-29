@@ -1,0 +1,5 @@
+#!/bin/bash
+
+./mda.pl &
+./imap.pl &
+./smtp.pl &

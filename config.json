@@ -1,0 +1,14 @@
+{
+    "smtp": {
+        "hostname": "gateway.dc4",
+        "ports": [ 25 ],
+
+        "relay": {
+            "auth": 1,
+            "anon": 0 
+        }
+    },
+    "imap": {
+        "ports": [ 143 ]
+    }
+}

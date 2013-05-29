@@ -10,6 +10,7 @@ use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 # Some data - probably needs outsourcing
 has 'hostname'  => ( is => 'rw' );
+has 'db' => ( is => 'rw' );
 
 # Callbacks
 has 'user_auth' => ( is => 'rw' );
@@ -18,7 +19,7 @@ sub respond {
     my ($self, $stream, @cmd) = @_;
 
     my $c = join ' ', @cmd;
-    $stream->write("$c\n");
+    $stream->write("$c\r\n");
     print "Sent: $c\n";
     return;
 }
@@ -27,6 +28,10 @@ sub accept {
     my ($self, $loop, $stream, $id) = @_;
 
     print "Accepted connection\n";
+
+    my $db = $self->db;
+    my $mailboxes = $db->get_collection('mailboxes');
+    my $store = $db->get_collection('store');
 
     $self->respond($stream, '* OK', '[CAPABILITY IMAP4REV1 AUTH=LOGIN]', $self->hostname, " IMAP4rev1 - Experimental Mojo::IOLoop IMAP4 Server");
 
@@ -58,23 +63,44 @@ sub accept {
 
         for(uc $cmd) {
             when (/^LOGIN$/) {
-                $self->respond($stream, $id, 'OK', '[CAPABILITY IMAP4REV1] User authenticated');
+                my ($username, $password) = $data =~ /"(.*)"\s"(.*)"/;
+                my $user = &{$self->user_auth}($username, $password);
+                if($user) {
+                    $auth->{success} = 1;
+                    $auth->{username} = $username;
+                    $auth->{password} = $password;
+                    $auth->{user} = $user;
+                    $self->respond($stream, $id, 'OK', '[CAPABILITY IMAP4REV1] User authenticated');
+                } else {
+                    $auth = {};
+                    $self->respond($stream, $id, 'BAD', '[CAPABILITY IMAP4REV1] User authentication failed');
+                }
             }
             when (/^LSUB$/) {
-                $self->respond($stream, '*', 'LSUB () "."', 'INBOX');
+                if($auth && $auth->{success}) {
+                    for my $sub (keys %{$auth->{user}->{store}->{children}}) {
+                        $self->respond($stream, '*', 'LSUB () "."', $sub);
+                    }
+                }
                 $self->respond($stream, $id, 'OK');
             }
             when (/^LIST$/) {
-                if($data eq '"" "INBOX"') {
-                    $self->respond($stream, '*', 'LIST (\HasNoChildren) "." "INBOX"');
+                my ($um, $sub) = $data =~ /"(.*)"\s"(.*)"/;
+                if($auth && $auth->{success}) {
+                    if($auth->{user}->{store}->{children}->{$sub}) {
+                        $self->respond($stream, '*', 'LIST (\HasNoChildren) "." "' . $sub . '"');
+                    }
                 }
                 $self->respond($stream, $id, 'OK');
             }
             when (/^SELECT$/) {
-                if($data eq '"INBOX"') {
+                my ($sub) = $data =~ /"(.*)"/;
+                if($auth->{user}->{store}->{children}->{$sub}) {
+                    my $exists = $auth->{user}->{store}->{children}->{$sub}->{seen} + $auth->{user}->{store}->{children}->{$sub}->{unseen};
+                    my $recent = $auth->{user}->{store}->{children}->{$sub}->{unseen};
                     $self->respond($stream, '*', 'FLAGS ()');
-                    $self->respond($stream, '*', '1 EXISTS');
-                    $self->respond($stream, '*', '0 RECENT');
+                    $self->respond($stream, '*', $exists . ' EXISTS');
+                    $self->respond($stream, '*', $recent . ' RECENT');
                 }
                 $self->respond($stream, $id, 'OK');
             }
@@ -83,22 +109,64 @@ sub accept {
                     my $from = $1;
                     my $to = $3;
                     my $args = $4;
-                    print "Got ARGS: $args\n";
+                    print "Got FROM: $1, 2[$2], TO: $3, ARGS: $args\n";
+                    my $query = {
+                        mailbox => {
+                            domain => $auth->{user}->{domain},
+                            user => $auth->{user}->{mailbox},
+                        },
+                    };
+                    if($to) {
+                        $query->{uid} = {
+                            '$gte' => int($from)
+                        };
+                        if($to ne '*') {
+                            $query->{uid} = {
+                                '$lte' => int($to)
+                            };
+                        }
+                    } else {
+                        $query->{uid} = int($from);
+                    }
+                    my $messages = $store->find($query);
                     if($args eq 'FLAGS') {
-                        $self->respond($stream, '* 1 FETCH (FLAGS (\Seen) UID 1234)');
+                        while (my $email = $messages->next) {   
+                            my $flags = "";
+                            for my $flag (@{$email->{flags}}) {
+                                $flags .= "\\$flag ";
+                            }
+                            $self->respond($stream, '* '.$email->{uid}.' FETCH (FLAGS ('.$flags.') UID '.$email->{uid}.')');
+                        }
                     } elsif ($args =~ /BODY\.PEEK/) {
-                        $self->respond($stream, '* 1 FETCH (FLAGS (\Seen) RFC822.SIZE 192 ENVELOPE ("Mon, 27 May 2013 13:55:01 +0000 (GMT)" "Test message") UID 1234)');
+                        while (my $email = $messages->next) {   
+                            my $flags = "";
+                            for my $flag (@{$email->{flags}}) {
+                                $flags .= "\\$flag ";
+                            }
+                            $self->respond($stream, '* '.$email->{uid}.' FETCH (FLAGS ('.$flags.') RFC822.SIZE '.$email->{message}->{size}.' ENVELOPE ("'.$email->{message}->{headers}->{Date}.'" "'.$email->{message}->{headers}->{Subject}.'") UID '.$email->{uid}.')');
+                        }
                     } elsif ($args =~ /BODY\[\]/) {
-                        $self->respond($stream, '* 1 FETCH (UID 1234 RFC822.SIZE 186 BODY[] {186}'); # size without newlines?
-                        $self->respond($stream, 'Date: Mon, 27 May 2013 13:55:01 +0000 (GMT)');
-                        $self->respond($stream, 'From: Test User <test@gateway.dc4>');
-                        $self->respond($stream, 'Subject: Test message');
-                        $self->respond($stream, 'To: iankent@gateway.dc4');
-                        $self->respond($stream, 'Content-Type: TEXT/PLAIN; CHARSET=UTF-8');
-                        $self->respond($stream, '');
-                        $self->respond($stream, 'Test message content');
-                        $self->respond($stream, ')');
-                        $self->respond($stream, '* 1 FETCH (FLAGS (\Seen))');
+                        while (my $email = $messages->next) {   
+                            my $flags = "";
+                            for my $flag (@{$email->{flags}}) {
+                                $flags .= "\\$flag ";
+                            }
+                            $self->respond($stream, '* '.$email->{uid}.' FETCH (UID '.$email->{uid}.' RFC822.SIZE '.$email->{message}->{size}.' BODY[] {'.$email->{message}->{size}.'}');
+                            for my $hdr (keys %{$email->{message}->{headers}}) {
+                                my $h = $email->{message}->{headers}->{$hdr};
+                                if(ref $h =~ /ARRAY/) {
+                                    for my $i (@$h) {
+                                        $self->respond($stream, $hdr . ': ' . $i);
+                                    }
+                                } else {
+                                    $self->respond($stream, $hdr . ': ' . $h);
+                                }
+                            }
+                            $self->respond($stream, '');
+                            $self->respond($stream, $email->{message}->{body});
+                            $self->respond($stream, ')');
+                            $self->respond($stream, '* '.$email->{uid}.' FETCH (FLAGS ('.$flags.'))');
+                        }
                     }
                 }
                 $self->respond($stream, $id, 'OK');
