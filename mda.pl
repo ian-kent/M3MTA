@@ -9,7 +9,7 @@ use v5.14;
 use Data::Dumper;
 use Config::Any;
 
-use MongoNet::SMTP;
+use M3MTA::SMTP;
 use My::User;
 use My::Email;
 

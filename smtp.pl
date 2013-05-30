@@ -9,7 +9,7 @@ use v5.14;
 use Data::Dumper;
 use Config::Any;
 
-use MongoNet::SMTP;
+use M3MTA::SMTP;
 use My::User;
 use My::Email;
 
@@ -23,7 +23,7 @@ my $client = MongoDB::MongoClient->new;
 my $db = $client->get_database('mojosmtp');
 my $queue = $db->get_collection('queue');
 
-my $smtp = new MongoNet::SMTP(
+my $smtp = new M3MTA::SMTP(
     hostname => $hostname,
     user_send => sub {
         my ($auth, $from) = @_;

@@ -1,5 +1,5 @@
 #!/bin/bash
 
-./mda.pl &
-./imap.pl &
-./smtp.pl &
+perl -Ilib ./mda.pl &
+perl -Ilib ./imap.pl &
+perl -Ilib ./smtp.pl &

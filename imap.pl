@@ -9,7 +9,7 @@ use v5.14;
 use Data::Dumper;
 use Config::Any;
 
-use MongoNet::IMAP;
+use M3MTA::IMAP;
 use My::User;
 use My::Email;
 
@@ -22,7 +22,7 @@ my $client = MongoDB::MongoClient->new;
 my $db = $client->get_database('mojosmtp');
 my $mailboxes = $db->get_collection('mailboxes');
 
-my $imap = new MongoNet::IMAP(
+my $imap = new M3MTA::IMAP(
     db => $db,
     user_auth => sub {
         my ($username, $password) = @_;
