@@ -29,7 +29,7 @@ sub register {
 	# Add a receive hook to prevent commands before a HELO
 	$smtp->register_hook('receive', sub {
 		my ($session, $cmd, $data) = @_;
-		
+
 		# Don't let the command happen unless its HELO, EHLO, QUIT or NOOP
 		if($cmd !~ /^(HELO|EHLO|QUIT|NOOP)$/ && !$session->email->helo) {
 	        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "expecting HELO or EHLO");

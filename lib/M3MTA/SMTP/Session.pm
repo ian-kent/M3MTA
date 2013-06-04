@@ -50,11 +50,12 @@ sub accept {
     my ($self) = @_;
 
     # TODO should probably have an API for preventing welcome
-    if(my $rfc = $self->smtp->has_rfc('RFC2487')) {
-        $self->{tls_enabled} = $rfc->{handles}->{$self->stream->handle} ? 1 : 0;
-        print "tls enabled: " . $self->{tls_enabled} . "\n";
-    }
-    if(!$self->{tls_enabled}) { 
+    my $settings = {
+        send_welcome => 1,
+    };
+    $self->smtp->call_hook('accept', $self, $settings);
+
+    if($settings->{send_welcome}) { 
         $self->respond($M3MTA::SMTP::ReplyCodes{SERVICE_READY}, $self->smtp->config->{hostname}, $self->smtp->ident);
     }
 
@@ -68,11 +69,15 @@ sub accept {
     });
     $self->stream->on(close => sub {
         $self->log("Stream closed");
+        # TODO also should probably have an API
+        if((my $rfc = $self->smtp->has_rfc('RFC2487')) && $self->{tls_enabled}) {
+            my $handle = $rfc->{handles}->{$self->id};
+            delete $rfc->{handles}->{$handle};
+            delete $rfc->{handles}->{$self->id};
+        }
     });
     $self->stream->on(read => sub {
         my ($stream, $chunk) = @_;
-
-        print "READ CHUNK: $chunk\n";
 
         $self->buffer(($self->buffer ? $self->buffer : '') . $chunk);
         $self->receive if $self->buffer =~ /\r?\n$/m;
@@ -84,7 +89,6 @@ sub accept {
 sub receive {
 	my ($self) = @_;
 
-    $self->log("RECEIVE::::\n\n\n");
 	$self->log("[RECD] %s", $self->buffer);
 
     # Check if we have a state hook
