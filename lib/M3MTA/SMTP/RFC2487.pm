@@ -28,18 +28,15 @@ sub register {
     	my ($session, $settings) = @_;
 
     	# Find out if its a TLS stream
-        my $tls_enabled = $self->{handles}->{$session->stream->handle} ? 1 : 0;
+    	my $handle = $self->{handles}->{$session->stream->handle};
+        my $tls_enabled = $handle ? 1 : 0;
         if($tls_enabled) {
             # It is, so dont send a welcome message and get rid of the old stream
             $settings->{send_welcome} = 0;
+            $session->{tls_enabled} = 1;
 
-            # Hook into stream close to clean up
-            my $handle = $session->stream->handle;
-            weaken $handle;
-            $session->stream->on(close => sub {
-            	$session->log("TLS stream closed");
-	            delete $self->{handles}->{$handle};
-            });
+            # Now we have a working TLS stream we don't need the handle
+            delete $self->{handles}->{$handle};
 
             # FIXME the old stream doesn't get closed, it eventually times out
             #my $stream = $rfc->{handles}->{$self->stream->handle}->{session}->stream;
@@ -76,10 +73,7 @@ sub starttls {
 			SSL_verify_mode => 0x00,
 			SSL_server => 1,
 		});
-		$self->{handles}->{$handle} = {
-			session => $session,
-			handle => $handle
-		};
+		$self->{handles}->{$handle} = $handle;
 		$session->log("Socket upgraded to SSL: %s", (ref $session->stream->handle));
 	});
 }
