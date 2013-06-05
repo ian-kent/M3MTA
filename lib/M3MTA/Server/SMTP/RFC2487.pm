@@ -1,15 +1,21 @@
-package M3MTA::SMTP::RFC2487;
+package M3MTA::Server::SMTP::RFC2487;
+
+=head NAME
+M3MTA::Server::SMTP::RFC2487 - STARTTLS
+=cut
 
 use IO::Socket::SSL;
 use Mouse;
 use Scalar::Util qw/weaken/;
+
+#------------------------------------------------------------------------------
 
 sub register {
 	my ($self, $smtp) = @_;
 
 	# Register this RFC
 	if(!$smtp->has_rfc('RFC2554')) {
-        die "M3MTA::SMTP::RFC2487 requires RFC2554";
+        die "M3MTA::Server::SMTP::RFC2487 requires RFC2554";
     }
     $smtp->register_rfc('RFC2487', $self);
 
@@ -49,6 +55,8 @@ sub register {
 
 }
 
+#------------------------------------------------------------------------------
+
 sub helo {
     my ($self, $session) = @_;
     
@@ -57,10 +65,12 @@ sub helo {
     return "STARTTLS";
 }
 
+#------------------------------------------------------------------------------
+
 sub starttls {
 	my ($self, $session) = @_;
 
-	$session->respond($M3MTA::SMTP::ReplyCodes{SERVICE_READY}, "Go ahead.");
+	$session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVICE_READY}, "Go ahead.");
 
 	$session->stream->on(drain => sub {
 		my $handle = $session->stream->handle;
@@ -77,5 +87,7 @@ sub starttls {
 		$session->log("Socket upgraded to SSL: %s", (ref $session->stream->handle));
 	});
 }
+
+#------------------------------------------------------------------------------
 
 1;

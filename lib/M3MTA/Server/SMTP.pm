@@ -1,23 +1,24 @@
-package M3MTA::SMTP;
+package M3MTA::Server::SMTP;
 
-use Mojo::IOLoop;
-use Modern::Perl;
+=head NAME
+M3MTA::Server::SMTP - Mojo::IOLoop based SMTP server
+=cut
+
 use Mouse;
-use Try::Tiny;
+extends 'M3MTA::Server::Base';
+
 use Data::Dumper;
-use DateTime::Tiny;
-use MongoDB::MongoClient;
 use Data::Uniqid qw/ luniqid /;
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
+use MongoDB::MongoClient;
+use Try::Tiny;
 
-use M3MTA::SMTP::Session;
-use M3MTA::SMTP::RFC2821;
-use M3MTA::SMTP::RFC2554;
-use M3MTA::SMTP::RFC2487;
+use M3MTA::Server::SMTP::Session;
+use M3MTA::Server::SMTP::RFC2821;
+use M3MTA::Server::SMTP::RFC2554;
+use M3MTA::Server::SMTP::RFC2487;
 
-# Server config
-has 'config'    => ( is => 'rw' );
-has 'ident'     => ( is => 'rw', default => sub { 'M3MTA ESMTP'});
+#------------------------------------------------------------------------------
 
 # Database
 has 'client'    => ( is => 'rw' );
@@ -33,81 +34,12 @@ has 'user_auth'   => ( is => 'rw' );
 has 'user_send'   => ( is => 'rw' );
 has 'mail_accept' => ( is => 'rw' );
 
-# RFC Implementations
-has 'commands'      => ( is => 'rw' );
-has 'helo'          => ( is => 'rw' );
-has 'states'        => ( is => 'rw' );
-has 'hooks'         => ( is => 'rw' );
-has 'rfcs'          => ( is => 'rw' );
-sub register_command {
-    my ($self, $command, $callback) = @_;
-    if(ref($command) !~ /ARRAY/) {
-        $command = [$command];
-    }
-    $self->commands({}) if !$self->commands;
-    for my $cmd (@$command) {
-        $self->commands->{$cmd} = $callback;
-    }
-}
-sub register_helo {
-    my ($self, $callback) = @_;
-    $self->helo([]) if !$self->helo;
-    push $self->helo, $callback;
-}
-sub register_state {
-    my ($self, $pattern, $callback) = @_;
-    $self->states([]) if !$self->states;
-    push $self->states, [ $pattern, $callback ];
-}
-sub register_hook {
-    my ($self, $hook, $callback) = @_;
-    $self->hooks({}) if !$self->hooks;
-    $self->hooks->{$hook} = [] if !$self->hooks->{$hook};
-    push $self->hooks->{$hook}, $callback;
-}
-sub call_hook {
-    my ($self, $hook, @args) = @_;
-    my $result = 1;
-    if($self->hooks && $self->hooks->{$hook}) {
-        for my $h (@{$self->hooks->{$hook}}) {
-            my $r = &{$h}(@args);
-            $result = 0 if !$r;
-        }
-    }
-    return $result;
-}
-sub register_rfc {
-    my ($self, $rfc, $class) = @_;
-    $self->rfcs({}) if !$self->rfcs;
-    my ($package, $file, $line) = caller;
-    $self->log("Registered RFC '$rfc' for package '$package'");
-    $self->rfcs->{$rfc} = $class;
-}
-sub unregister_rfc {
-    my ($self, $rfc) = @_;
-    return if !$self->rfcs;
-    delete $self->rfcs->{$rfc};
-}
-sub has_rfc {
-    my ($self, $rfc) = @_;
-    return 0 if !$self->rfcs;
-    return $self->rfcs->{$rfc} ? $self->rfcs->{$rfc} : 0;
-}
-
-# Debug
-has 'debug'       => ( is => 'rw', default => sub { $ENV{M3MTA_SMTP_DEBUG} // 1 } );
-
 our %ReplyCodes = ();
-sub register_replycode {
-    my ($self, $name, $code) = @_;
-    if(ref($name) =~ /HASH/) {
-        for my $n (keys %$name) {
-            $M3MTA::SMTP::ReplyCodes{$n} = $name->{$n};
-        }
-    } else {
-        $M3MTA::SMTP::ReplyCodes{$name} = $code;
-    }
-}
+
+# TODO should probably have this as a hook?
+has 'helo'          => ( is => 'rw' );
+
+#------------------------------------------------------------------------------
 
 sub BUILD {
     my ($self) = @_;
@@ -121,58 +53,60 @@ sub BUILD {
     $self->mailboxes($self->database->get_collection($self->config->{database}->{mailboxes}->{collection}));
 
     # Initialise RFCs
-    M3MTA::SMTP::RFC2821->new->register($self); # Basic SMTP
-    M3MTA::SMTP::RFC2554->new->register($self); # AUTH
-    M3MTA::SMTP::RFC2487->new->register($self); # STARTTLS
+    M3MTA::Server::SMTP::RFC2821->new->register($self); # Basic SMTP
+    M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH
+    M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
 }
 
-sub log {
-    my ($self, $message, @args) = @_;
+#------------------------------------------------------------------------------
 
-    return if !$self->debug;
+# Handles new connections from M3MTA::Server::Base
+sub accept {
+    my ($self, $server, $loop, $stream, $id) = @_;
 
-    $message = sprintf("%s $message", DateTime::Tiny->now, @args);
-    print "$message\n";
+    $self->log("Session accepted with id %s", $id);
+
+    my $session = new M3MTA::Server::SMTP::Session(
+        smtp => $self, 
+        stream => $stream,
+        loop => $loop,
+        id => $id,
+        server => $loop->{acceptors}{$server},
+    );
+
+    $session->begin;
 
     return;
 }
 
-sub start {
-    my ($self) = @_;
+#------------------------------------------------------------------------------
 
-    for my $port (@{$self->config->{ports}}) {
-        $self->log("Starting M3MTA::SMTP server on port %s", $port);
+sub register_replycode {
+    my ($self, $name, $code) = @_;
 
-        my $server;
-        $server = Mojo::IOLoop->server({port => $port}, sub {
-    	    my ($loop, $stream, $id) = @_;
-
-            $self->log("Session accepted with id %s", $id);
-
-            my $session = new M3MTA::SMTP::Session(
-                smtp => $self, 
-                stream => $stream,
-                loop => $loop,
-                id => $id,
-                server => $loop->{acceptors}{$server},
-            );
-
-            $session->accept;
-
-            return;
-        });
+    if(ref($name) =~ /HASH/) {
+        for my $n (keys %$name) {
+            $M3MTA::Server::SMTP::ReplyCodes{$n} = $name->{$n};
+        }
+    } else {
+        $M3MTA::Server::SMTP::ReplyCodes{$name} = $code;
     }
+}
 
-    $self->log("Starting Mojo::IOLoop");
-    Mojo::IOLoop->start;
+#------------------------------------------------------------------------------
 
-    return;
+sub register_helo {
+    my ($self, $callback) = @_;
+    
+    $self->helo([]) if !$self->helo;    
+    push $self->helo, $callback;
 }
 
 #------------------------------------------------------------------------------
 # Application callbacks, i.e. 'business logic'
 #------------------------------------------------------------------------------
 
+# Determines whether the MAIL FROM command should succeed
 sub _user_send {
     my ($self, $session, $from) = @_;
 
@@ -210,6 +144,10 @@ sub _user_send {
     return 0;    
 }
 
+#------------------------------------------------------------------------------
+
+# Validate the username and password - undef if invalid, anything else if valid.
+# Anything returned here is stored in $session->user->{user}
 sub _user_auth {
     my ($self, $username, $password) = @_;
 
@@ -224,6 +162,9 @@ sub _user_auth {
     return $mailbox;
 }
 
+#------------------------------------------------------------------------------
+
+# Decide whether the RCPT TO command should succeed
 sub _mail_accept {
     my ($self, $session, $to) = @_;
 
@@ -280,6 +221,9 @@ sub _mail_accept {
     return 0;
 }
 
+#------------------------------------------------------------------------------
+
+# Handle a queued message (will be a M3MTA::Server::SMTP::Email object)
 sub _queued {
     my ($self, $email) = @_;
 
@@ -297,13 +241,15 @@ sub _queued {
     my @res;
     if($@) {
         @res = ("451", "$id message store failed, please retry later");
-        $self->log("Queue message failed for '$id'");
+        $self->log("Queue message failed for '%s': %s\n%s", $id, $@, (Dumper $email));
     } else {
         @res = ("250", "$id message accepted for delivery");
-        $self->log("Message queued for '$id'");
+        $self->log("Message queued for '%s':\n%s", $id, (Dumper $email));
     }
-    $self->log(Dumper $email);
+
     return wantarray ? @res : join ' ', @res;
 }
+
+#------------------------------------------------------------------------------
 
 1;

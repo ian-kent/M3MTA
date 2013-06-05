@@ -1,4 +1,8 @@
-package M3MTA::SMTP::RFC2821;
+package M3MTA::Server::SMTP::RFC2821;
+
+=head NAME
+M3MTA::Server::SMTP::RFC2821 - Basic SMTP
+=cut
 
 use Mouse;
 
@@ -27,12 +31,12 @@ sub register {
 	});
 
 	# Add a receive hook to prevent commands before a HELO
-	$smtp->register_hook('receive', sub {
+	$smtp->register_hook('command', sub {
 		my ($session, $cmd, $data) = @_;
 
 		# Don't let the command happen unless its HELO, EHLO, QUIT or NOOP
 		if($cmd !~ /^(HELO|EHLO|QUIT|NOOP)$/ && !$session->email->helo) {
-	        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "expecting HELO or EHLO");
+	        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "expecting HELO or EHLO");
 	        return 0;
 	    }
 
@@ -83,7 +87,7 @@ sub helo {
 	my ($self, $session, $data) = @_;
 
 	if(!$data || $data =~ /^\s*$/) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "you didn't introduce yourself");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "you didn't introduce yourself");
         return;
     }
 
@@ -97,13 +101,13 @@ sub helo {
     	push @helos, $helo if $helo;
     }
 
-    $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}.((scalar @helos == 0) ? ' ' : '-')."Hello '$data'. I'm", $session->smtp->ident);
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}.((scalar @helos == 0) ? ' ' : '-')."Hello '$data'. I'm", $session->smtp->ident);
     for (my $i = 0; $i < scalar @helos; $i++) {
     	my $helo = $helos[$i];
     	if($i == (scalar @helos) - 1) {
-    		$session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, $helo);
+    		$session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, $helo);
     	} else {
-    		$session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK} . "-" . $helo);
+    		$session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK} . "-" . $helo);
     	}
     }
 }
@@ -113,7 +117,7 @@ sub helo {
 sub noop {
 	my ($self, $session, $data) = @_;
 
-	$session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
+	$session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
 }
 
 #------------------------------------------------------------------------------
@@ -121,7 +125,7 @@ sub noop {
 sub quit {
 	my ($self, $session, $data) = @_;
 
-	$session->respond($M3MTA::SMTP::ReplyCodes{SERVICE_CLOSING_TRANSMISSION_CHANNEL}, "Bye.");
+	$session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVICE_CLOSING_TRANSMISSION_CHANNEL}, "Bye.");
 
     $session->stream->on(drain => sub {
         $session->stream->close;
@@ -134,25 +138,25 @@ sub mail {
 	my ($self, $session, $data) = @_;
 
 	if($session->email->from) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "MAIL command already received");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "MAIL command already received");
         return;
     }
     if($data =~ /^From:\s*<(.+)>$/i) {
-        print "Checking user against $1\n";
+        $session->log("Checking user against '%s'", $1);
         my $r = eval {
             return $session->smtp->_user_send($session, $1);
         };
-        print "Error: $@\n" if $@;
+        $session->log("Error: %s", $@) if $@;
 
         if(!$r) {
-            $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
             return;
         }
         $session->email->from($1);
-        $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 sender ok");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 sender ok");
         return;
     }
-    $session->respond($M3MTA::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
 }
 
 #------------------------------------------------------------------------------
@@ -161,11 +165,11 @@ sub rcpt {
 	my ($self, $session, $data) = @_;
 
 	if(!$session->email->from) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
         return;
     }
     if($session->email->data) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
         return;
     }
 
@@ -177,7 +181,7 @@ sub rcpt {
         print "Error: $@\n" if $@;
         print "RESULT IS: $r\n";
         if(!$r) {
-            $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send to this address");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send to this address");
             return;
         }
         
@@ -185,10 +189,10 @@ sub rcpt {
             $session->email->to([]);
         }
         push @{$session->email->to}, $1;
-        $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
         return;
     }
-    $session->respond($M3MTA::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
 }
 
 #------------------------------------------------------------------------------
@@ -199,16 +203,16 @@ sub data {
 	if($session->state ne 'DATA') {
 		# Called from DATA command
 		if(scalar @{$session->email->to} == 0) {
-            $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send RCPT command first");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send RCPT command first");
             return;
         }
 
         if($session->email->data) {
-            $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
             return;
         }
 
-        $session->respond($M3MTA::SMTP::ReplyCodes{START_MAIL_INPUT}, "Send mail, end with \".\" on line by itself");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{START_MAIL_INPUT}, "Send mail, end with \".\" on line by itself");
         $session->state('DATA');
         return;
 	}

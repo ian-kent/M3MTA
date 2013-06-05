@@ -1,4 +1,8 @@
-package M3MTA::SMTP::RFC2554;
+package M3MTA::Server::SMTP::RFC2554;
+
+=head NAME
+M3MTA::Server::SMTP::RFC2554 - SMTP AUTH
+=cut
 
 use Mouse;
 use Modern::Perl;
@@ -9,7 +13,7 @@ sub register {
 
     # Register this RFC
     if(!$smtp->has_rfc('RFC2821')) {
-        die "M3MTA::SMTP::RFC2554 requires RFC2821";
+        die "M3MTA::Server::SMTP::RFC2554 requires RFC2821";
     }
     $smtp->register_rfc('RFC2554', $self);
 
@@ -40,12 +44,12 @@ sub auth {
 	my ($self, $session, $data) = @_;
 
     if($session->user && $session->user->{success}) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "Error: already authenticated");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "Error: already authenticated");
         return;
     }
 
     if(!$data) {
-        $session->respond($M3MTA::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Syntax: AUTH mechanism");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Syntax: AUTH mechanism");
         return;
     }
 
@@ -180,7 +184,7 @@ sub authenticate {
         }
         default {
             # TODO use correct error code
-            $session->respond($M3MTA::SMTP::ReplyCodes{COMMAND_NOT_UNDERSTOOD}, "Invalid mechanism");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{COMMAND_NOT_UNDERSTOOD}, "Invalid mechanism");
         }
     }
     return;
