@@ -1,5 +1,0 @@
-#!/bin/bash
-
-perl -Ilib ./mda.pl &
-perl -Ilib ./imap.pl &
-perl -Ilib ./smtp.pl &
