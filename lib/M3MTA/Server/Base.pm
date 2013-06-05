@@ -20,7 +20,7 @@ has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } )
 
 # Server config
 has 'config'    => ( is => 'rw' );
-has 'ident'     => ( is => 'rw', default => sub { 'M3MTA ESMTP'});
+has 'ident'     => ( is => 'rw', default => sub { 'M3MTA' });
 
 #-------------------------------------------------------------------------------
 

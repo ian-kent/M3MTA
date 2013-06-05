@@ -21,6 +21,15 @@
 
     },
     "imap": {
-        "ports": [ 143 ]
+        "hostname": "gateway.dc4",
+        "ports": [ 143 ],
+        "database": {
+            "hostname": "127.0.0.1",
+            "username": null,
+            "password": null,
+            "database": "mojosmtp",
+            "store": { "collection": "store" },
+            "mailboxes": { "collection": "mailboxes" }
+        }
     }
 }

@@ -93,7 +93,7 @@ sub receive {
     
     # Only continue if we had an EOL
     my $buffer = $self->buffer;
-    return unless $buffer =~ /\r\n$/gs;
+    return unless $buffer =~ /\r\n$/gs; #FIXME not necessary? done above
     $self->buffer('');
 
     # Get the command and data
