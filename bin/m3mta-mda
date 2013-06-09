@@ -17,7 +17,7 @@ my $config = Config::Any->load_files({ files => ['config.json'], use_ext => 1 })
 
 # Get connection to database
 my $client = MongoDB::MongoClient->new;
-my $db = $client->get_database('mojosmtp');
+my $db = $client->get_database('m3mta');
 my $queue = $db->get_collection('queue'); # incoming queue from smtp daemon
 my $mailboxes = $db->get_collection('mailboxes'); # user mailboxes/aliases
 my $domains = $db->get_collection('domains'); # domains this system recognises
@@ -43,22 +43,23 @@ while (1) {
 
                 # Turn the email into an object
                 my $obj = parse($email->{data});
+                my $path = $mailbox->{delivery}->{path};
 
                 # Make the message for the store
                 my $msg = {
-                    uid => $mailbox->{delivery}->{uid},
+                    uid => $mailbox->{store}->{children}->{$path}->{nextuid},
                     message => $obj,
                     mailbox => { domain => $domain, user => $user },
-                    path => 'INBOX',
-                    flags => ['Unseen'],
+                    path => $path,
+                    flags => ['\\Unseen', '\\Recent'],
                 };
 
                 # Update mailbox next UID
                 $mailboxes->update({mailbox => $user, domain => $domain}, {
                     '$inc' => {
-                        'delivery.uid' => 1,
-                        'store.unseen' => 1,
-                        'store.children.INBOX.unseen' => 1 
+                        "store.children.$path.nextuid" => 1,
+                        "store.children.$path.unseen" => 1,
+                        "store.children.$path.recent" => 1 
                     } 
                 } );
 

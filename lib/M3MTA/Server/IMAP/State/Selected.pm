@@ -25,7 +25,7 @@ sub receive {
 	my ($self, $session, $id, $cmd, $data) = @_;
 	$session->log("Received data in Selected state");
 
-	return 0 if $cmd !~ /(UID)/i;
+	return 0 if $cmd !~ /(UID|SELECT)/i;
 
 	$cmd = lc $cmd;
 	return $self->$cmd($session, $id, $data);
@@ -33,19 +33,57 @@ sub receive {
 
 #------------------------------------------------------------------------------
 
+sub select {
+	my ($self, $session, $id, $data) = @_;
+
+	return $session->imap->get_rfc('RFC3501.Authenticated')->select($session, $id, $data);
+}
+
+#------------------------------------------------------------------------------
+
 sub uid {
 	my ($self, $session, $id, $data) = @_;
 
-	if($data =~ /^fetch (\d+)(:(\d+|\*))? \((.*)\)/) {
+	my ($cmd, $args) = $data =~ /^(FETCH|SEARCH|COPY|STORE)\s(.*)$/i;
+	$cmd = uc $cmd;
+
+	$session->log("UID command got subcommand [$cmd] with args [$args]");
+
+	for($cmd) {
+		when (/FETCH/) {
+			$session->log("Performing UID FETCH");
+			return $self->uid_fetch($session, $id, $args);
+		}
+		when (/SEARCH/) {
+
+		}
+		when (/COPY/) {
+
+		}
+		when (/STORE/) {
+
+		}
+	}
+
+	return 0;	
+}
+
+#------------------------------------------------------------------------------
+
+sub uid_fetch {
+	my ($self, $session, $id, $args) = @_;
+
+	if($args =~ /^(\d+)(:(\d+|\*))? \((.*)\)/) {
         my $from = $1;
         my $to = $3;
-        my $args = $4;
-        print "Got FROM: $1, 2[$2], TO: $3, ARGS: $args\n";
+        my $params = $4;
+        $session->log("Got FROM: $1, 2[$2], TO: $3, ARGS: $params");
         my $query = {
             mailbox => {
                 domain => $session->auth->{user}->{domain},
                 user => $session->auth->{user}->{mailbox},
             },
+            path => $session->selected,
         };
         if($to) {
             $query->{uid}->{'$gte'} = int($from);
@@ -56,58 +94,127 @@ sub uid {
             $query->{uid} = int($from);
         }
         use Data::Dumper;
-        print Dumper $query;
+        $session->log(Dumper $query);
         my $messages = $session->imap->store->find($query);
-        my $count = 0;
-        if($args eq 'FLAGS') {
-            while (my $email = $messages->next) {   
+
+        my $i = 0;
+        my $prevkey = '';
+        my $buffer = '';
+        my $pmap = {};
+        my $ctx = [$pmap];
+        while(my $c = substr($params, $i++, 1)) {
+
+        	# if char is a letter and end of buffer is space, its a key
+        	if($c =~ /[\w\s\.]/) {
+        		if($buffer =~ /\s$/) {
+        			$buffer =~ s/\s+$//;
+        			$ctx->[0]->{$buffer} = 1;
+        			$prevkey = $buffer;
+        			$buffer = '';
+        		}
+        		# Set buffer to new char and continue
+        		$buffer .= $c;
+        		next;
+        	}
+
+        	# if we've got an opening bracket, we want to change the context
+        	if($c =~ /[\[\(]/) {
+        		if($buffer && $buffer !~ /^\s+$/) {
+        			$buffer =~ s/\s+$//;
+        			$prevkey = $buffer;
+        		}
+        		$ctx->[0]->{$prevkey} = {};
+        		$buffer = '';
+        		unshift $ctx, $ctx->[0]->{$prevkey};
+        		next;
+        	}
+
+        	# or a closing bracket
+        	if($c =~ /[\]\)]/) {
+        		$buffer = '';
+        		shift $ctx;
+        		next;
+        	}
+        }
+        if($buffer && $buffer !~ /^\s+$/) {
+        	$buffer =~ s/\s+$//;
+        	$pmap->{$buffer} = 1;
+        }
+
+       	$session->log(Dumper $pmap);
+
+       	while (my $email = $messages->next) {   
+
+       		my $response = "* " . $email->{uid} . " FETCH (UID " . $email->{uid} . " ";
+       		my $extra = '';
+
+	        if($pmap->{'FLAGS'}) {
                 my $flags = "";
                 for my $flag (@{$email->{flags}}) {
-                    $flags .= "\\$flag ";
+                	next if $flag =~ /^\s*$/;
+                    $flags .= "$flag ";
                 }
-                $count++;
-                $session->respond($count . ' '.$email->{uid}.' FETCH (UID '.$email->{uid}.' FLAGS ('.$flags.'))');
-            }
-        } elsif ($args =~ /BODY\.PEEK/) {
-            while (my $email = $messages->next) {   
-                my $flags = "";
-                for my $flag (@{$email->{flags}}) {
-                    $flags .= "\\$flag ";
-                }
-                #* 34632 FETCH (UID 34666 RFC822.SIZE 1796 FLAGS (\Recent) BODY[HEADER.FIELDS ("From" "To" "Cc" "Bcc" "Subject" "Date" "Message-ID" "Priority" "X-Priority" "References" "Newsgroups" "In-Reply-To" "Content-Type")] {306}
-                $count++;
-                $session->respond($count . ' '.$email->{uid}.' FETCH (UID '.$email->{uid}.' RFC822.SIZE '.$email->{message}->{size}.' FLAGS ('.$flags.')  ENVELOPE ("'.$email->{message}->{headers}->{Date}.'" "'.$email->{message}->{headers}->{Subject}.'"))');
-            }
-        } elsif ($args =~ /BODY\[\]/) {
-            while (my $email = $messages->next) {   
-                my $flags = "";
-                for my $flag (@{$email->{flags}}) {
-                    $flags .= "\\$flag ";
-                }
-                $session->respond('* '.$email->{uid}.' FETCH (UID '.$email->{uid}.' RFC822.SIZE '.$email->{message}->{size}.' BODY[] {'.$email->{message}->{size}.'}');
+                $response .= "FLAGS ($flags) ";
+	        } 
+
+	        if($pmap->{'RFC822.SIZE'}) {
+	        	$response .= 'RFC822.SIZE '.$email->{message}->{size}.' ';
+	        }
+
+			if ($pmap->{'BODY.PEEK'}) {
+                # BODY[HEADER.FIELDS ("From" "To" "Cc" "Bcc" "Subject" "Date" "Message-ID" "Priority" "X-Priority" "References" "Newsgroups" "In-Reply-To" "Content-Type")] {306}
+                if($pmap->{'BODY.PEEK'}->{'HEADER.FIELDS'}) {
+                	my @list;
+					for my $hdr (keys %{$email->{message}->{headers}}) {
+						push @list, $hdr;
+	                    my $h = $email->{message}->{headers}->{$hdr};
+	                    if(ref $h =~ /ARRAY/) {
+	                        for my $i (@$h) {
+	                            $extra .= $hdr . ': ' . $i . "\r\n";
+	                        }
+	                    } else {
+	                        $extra .= $hdr . ': ' . $h . "\r\n";
+	                    }
+	                }
+	                @list = map { "\"$_\"" } @list;
+	                my $headers = join ' ', @list;
+	                $response .= 'BODY[HEADER.FIELDS (' . $headers . ')] ';
+            	}
+
+                #$response .= 'ENVELOPE ("'.$email->{message}->{headers}->{Date}.'" "'.$email->{message}->{headers}->{Subject}.'")';
+	        }
+
+			if ($pmap->{'BODY'} || $pmap->{'RFC822'}) {               
                 for my $hdr (keys %{$email->{message}->{headers}}) {
                     my $h = $email->{message}->{headers}->{$hdr};
                     if(ref $h =~ /ARRAY/) {
                         for my $i (@$h) {
-                            $session->respond($hdr . ': ' . $i);
+                            $extra .= $hdr . ': ' . $i . "\r\n";
                         }
                     } else {
-                        $session->respond($hdr . ': ' . $h);
+                        $extra .= $hdr . ': ' . $h . "\r\n";
                     }
                 }
-                $session->respond('');
-                $session->respond($email->{message}->{body});
-                $session->respond(')');
-                $count++;
-                $session->respond($count . ' '.$email->{uid}.' FETCH (FLAGS ('.$flags.'))');
-            }
-        }
+                $extra .= "\r\n" . $email->{message}->{body};
+                if($pmap->{'BODY'}) {
+                	$response .= 'BODY[] ';
+            	} else {
+            		$response .= 'RFC822[] ';
+            	}
+	        }
+
+	        if($extra) {
+	        	$extra .= "\r\n";
+	        	$response .= "{" . (length $extra) . "}\r\n$extra\r\n";
+			}
+
+	        $response .= ")";
+			$session->respond($response);
+	    }
     }
     $session->respond($id, 'OK');
 
 	return 1;
 }
-
-#------------------------------------------------------------------------------
 
 1;

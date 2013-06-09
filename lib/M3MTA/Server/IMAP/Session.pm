@@ -14,7 +14,9 @@ has 'server' => ( is => 'rw' );
 
 # Current IMAP state (NotAuthenticated, Authenticated, Selected)
 has 'state'    => ( is => 'rw' );
+has 'selected' => ( is => 'rw' );
 has 'buffer'   => ( is => 'rw' );
+has 'receive_hook' => ( is => 'rw' );
 
 # User authentication
 has 'auth'     => ( is => 'rw' );
@@ -73,6 +75,10 @@ sub receive {
 
     $self->log("[RECD] %s", $self->buffer);
 
+    if($self->receive_hook) {
+        return $self->receive_hook->($self);
+    }
+
     # Only continue if we had an EOL
     my $buffer = $self->buffer;
     return unless $buffer =~ /\n$/gs; #FIXME not necessary? done above
@@ -85,8 +91,19 @@ sub receive {
     # See if we've got a command which can happen in any state
     return if &{$self->imap->get_state('Any')}($self, $id, $cmd, $data);
 
-    # Next try the current state
-    return if &{$self->imap->get_state($self->state)}($self, $id, $cmd, $data);
+    if($self->state() =~ /^NotAuthenticated$/) {
+        return if &{$self->imap->get_state('NotAuthenticated')}($self, $id, $cmd, $data);
+    } else {
+        # If we're authenticated or selected state, try authenticated first
+        if($self->state() =~ /^(Authenticated|Selected)$/) {
+            return if &{$self->imap->get_state('Authenticated')}($self, $id, $cmd, $data);
+        }
+
+        # If it didn't match authenticated state, and we're in selected state, try that next
+        if ($self->state() =~ /^Selected$/) {
+            return if &{$self->imap->get_state('Selected')}($self, $id, $cmd, $data);
+        }
+    }
 
     # Otherwise its a bad command
     $self->respond($id, 'BAD', "Command not understood.");

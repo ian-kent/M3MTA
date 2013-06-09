@@ -102,4 +102,73 @@ sub _user_auth {
 
 #------------------------------------------------------------------------------
 
+sub _store_message {
+    my ($self, $session, $mailbox, $flags, $content) = @_;
+
+    # TODO
+    $self->log("Storing message to mailbox [$mailbox] with flags [$flags]");
+
+    # Make the message for the store
+    my $mbox = $session->auth->{user}->{store}->{$mailbox};
+
+    my $obj = parse($content);
+
+    my @flgs = split /\s/, $flags;
+    push @flgs, '\\Recent';
+
+    my $msg = {
+        uid => $session->auth->{user}->{store}->{children}->{$mailbox}->{nextuid},
+        message => $obj,
+        mailbox => { domain => $session->auth->{user}->{domain}, user => $session->auth->{user}->{mailbox} },
+        path => $mailbox,
+        flags => \@flgs,
+    };
+
+    # Update mailbox next UID
+    $self->mailboxes->update({mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}}, {
+        '$inc' => {
+            'store.children.$mailbox.nextuid' => 1,
+            "store.children.$mailbox.recent" => 1,
+            "store.children.$mailbox.unseen" => 1 
+        } 
+    } );
+
+    # Save it to the database
+    my $oid = $self->store->insert($msg);
+    $self->log("Message stored with ObjectID [$oid], UID [" . $msg->{uid} . "]\n");
+
+    return 1;
+}
+
+#------------------------------------------------------------------------------
+
+# FIXME duplicate of code in m3mta-mda
+sub parse {
+    my ($data) = @_;
+
+    my $size = 0;
+
+    my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
+
+    my @hdrs = split /\r\n/m, $headers;
+    my %h = ();
+    for my $hdr (@hdrs) {
+        my ($key, $value) = split /:\s/, $hdr, 2;
+        if($h{$key}) {
+            $h{$key} = [$h{$key}] if ref $h{$key} !~ /ARRAY/;
+            push $h{$key}, $value;
+        } else {
+            $h{$key} = $value;
+        }
+    }
+
+    return {
+        headers => \%h,
+        body => $body,
+        size => length($data) + (scalar @hdrs) + 2, # weird hack, length seems to count \r\n as 1?
+    };
+}
+
+#------------------------------------------------------------------------------
+
 1;

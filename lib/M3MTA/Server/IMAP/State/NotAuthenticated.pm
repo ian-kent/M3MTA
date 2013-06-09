@@ -32,9 +32,10 @@ sub register {
             # Now we have a working TLS stream we don't need the handle
             delete $self->{handles}->{$handle};
 
-            # FIXME the old stream doesn't get closed, it eventually times out
-            #my $stream = $rfc->{handles}->{$self->stream->handle}->{session}->stream;
-            #my $handle = $stream->steal_handle;
+            # FIXME Still something wrong, couple of errors from Mojo::Reactor::Poll
+            my $old_handle = $self->{handles}->{$session->stream->handle};
+            $session->stream->reactor->remove($old_handle);
+            $old_handle->close;
         }
         $session->log("TLS enabled: %s", $tls_enabled);
 
@@ -108,6 +109,7 @@ sub starttls {
 			SSL_server => 1,
 		});
 		$self->{handles}->{$handle} = $handle;
+		$self->{streams}->{$handle} = $session->stream;
 		$session->log("Socket upgraded to SSL: %s", (ref $session->stream->handle));
 	});
 

@@ -30,7 +30,7 @@ sub log {
     return 0 unless $self->debug;
 
     $message = sprintf("[%s] %s $message", ref($self), DateTime::Tiny->now, @args);
-    print STDERR "$message\n";
+    print STDOUT "$message\n";
 
     return 1;
 }

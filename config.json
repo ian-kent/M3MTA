@@ -12,7 +12,7 @@
             "hostname": "127.0.0.1",
             "username": null,
             "password": null,
-            "database": "mojosmtp",
+            "database": "m3mta",
             "queue": { "collection": "queue" },
             "mailboxes": { "collection": "mailboxes" }
         }
@@ -23,11 +23,12 @@
     "imap": {
         "hostname": "gateway.dc4",
         "ports": [ 143 ],
+        "field_separator": "/",
         "database": {
             "hostname": "127.0.0.1",
             "username": null,
             "password": null,
-            "database": "mojosmtp",
+            "database": "m3mta",
             "store": { "collection": "store" },
             "mailboxes": { "collection": "mailboxes" }
         }
