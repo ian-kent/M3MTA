@@ -116,8 +116,13 @@ sub _store_message {
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';
 
+    my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
+    my $mb = $session->imap->mailboxes->find_one($mboxid);
+    use Data::Dumper;
+    $self->log("Loaded mb:\n%s", (Dumper $mb));
+
     my $msg = {
-        uid => $session->auth->{user}->{store}->{children}->{$mailbox}->{nextuid},
+        uid => $mb->{store}->{children}->{$mailbox}->{nextuid},
         message => $obj,
         mailbox => { domain => $session->auth->{user}->{domain}, user => $session->auth->{user}->{mailbox} },
         path => $mailbox,
@@ -127,9 +132,10 @@ sub _store_message {
     # Update mailbox next UID
     $self->mailboxes->update({mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}}, {
         '$inc' => {
-            'store.children.$mailbox.nextuid' => 1,
+            "store.children.$mailbox.nextuid" => 1,
             "store.children.$mailbox.recent" => 1,
-            "store.children.$mailbox.unseen" => 1 
+            "store.children.$mailbox.unseen" => 1,
+            "store.children.$mailbox.exists" => 1,
         } 
     } );
 
@@ -149,6 +155,9 @@ sub parse {
     my $size = 0;
 
     my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
+
+    # Collapse multiline headers
+    $headers =~ s/\r\n([\s\t])/$1/gm;
 
     my @hdrs = split /\r\n/m, $headers;
     my %h = ();
