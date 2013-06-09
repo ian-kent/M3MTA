@@ -49,11 +49,6 @@ domains.insert({
 //------------------------------------------------------------------------------
 
 mailboxes.insert({
-    // Should relay to mail.iankent.co.uk
-    "domain": "iankent.co.uk",
-    "mailbox": "ian.kent",
-});
-mailboxes.insert({
     // Should delivery locally
     "domain": "gateway.dc4",
     "mailbox": "iankent",
