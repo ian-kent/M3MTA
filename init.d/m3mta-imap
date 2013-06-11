@@ -1,0 +1,78 @@
+#!/bin/sh -e
+
+NAME=M3MTA-IMAP
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DAEMON=/home/iankent/perlmail/bin/m3mta-imap
+export PERL5LIB=/home/iankent/perlmail/lib:${PERL5LIB}
+CONFIG=/home/iankent/perlmail/config.json
+PIDFILE=/var/run/m3mta/imap.pid
+LOGFILE=/home/iankent/perlmail/m3mta-imap.log
+
+ARGS="--daemon --config=${CONFIG} --pidfile ${PIDFILE} --logfile ${LOGFILE}"
+
+. /lib/lsb/init-functions
+
+running() {
+    if [ -f ${PIDFILE} ]; then
+        echo y
+    fi
+}
+
+case "$1" in
+    start)
+        log_daemon_msg "Starting ${NAME}"
+        RUNNING=$(running)
+        if [ -n "$RUNNING" ]; then
+            log_end_msg 0
+        else
+            if start-stop-daemon --start --pidfile ${PIDFILE} --exec ${DAEMON} -- ${ARGS}; then
+                log_end_msg 0
+            else
+                log_end_msg 1
+            fi
+        fi
+    ;;
+
+    stop)
+        RUNNING=$(running)
+        log_daemon_msg "Stopping ${NAME}"
+        if [ -n "$RUNNING" ]; then
+            if ${DAEMON} --stop --pidfile ${PIDFILE}; then
+                log_end_msg 0
+            else
+                log_end_msg 1
+            fi
+        else
+            log_end_msg 0
+        fi
+    ;;
+
+    restart)
+        $0 stop
+        $0 start
+    ;;
+
+    status)
+        RUNNING=$(running)
+        if [ -n "$RUNNING" ]; then
+           log_success_msg "${NAME} is running"
+           exit 0
+        else
+           log_success_msg "${NAME} is not running"
+           exit 3
+        fi
+    ;;
+
+    flush|check|abort)
+        ${DAEMON} $1
+    ;;
+
+    *)
+        log_action_msg "Usage: $0 {start|stop|restart|status}"
+        exit 1
+    ;;
+esac
+
+exit 0
+
