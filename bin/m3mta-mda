@@ -10,12 +10,123 @@ use Data::Dumper;
 use Net::DNS;
 use Config::Any;
 use IO::Socket::INET;
+use Getopt::Long;
+
+use POSIX qw/ setsid /;
+use Cwd qw/ chdir /;
+use IO::Handle;
 
 use My::User;
 use My::Email;
 
+my $stop = 0;
+my $daemon = 0;
+my $cfg = '';
+my $pidfile = '';
+my $logfile = '';
+GetOptions(
+    'stop' => \$stop,
+    'daemon' => \$daemon,
+    'config=s' => \$cfg,
+    'pidfile=s' => \$pidfile,
+    'logfile=s' => \$logfile,
+);
+
+sub read_pid_file {
+    open my $fh, "<$pidfile" or die "Unable to open pidfile $pidfile";
+    my $realpid = <$fh>;
+    close $fh;
+    return $realpid;
+}
+
+if($stop) {
+    if(-e $pidfile) {
+        my $realpid = read_pid_file;
+        
+        my $cnt = kill 9, $realpid;
+        die("Failed to kill process $realpid") if !$cnt;
+
+        my $unlinked = unlink $pidfile;
+        die("Failed to delete pidfile $pidfile") if !$unlinked;
+
+        exit 0;
+    } else {
+        die("$pidfile not found");
+    }
+}
+
+if(-e $pidfile) {
+    my $realpid = read_pid_file;
+
+    my $existing = kill 0, $realpid;
+    die("M3MTA-MDA is already running") if $existing;
+
+    my $unlinked = unlink $pidfile;
+    die("pidfile '$pidfile' found but process doesn't exist, pidfile delete failed") if !$unlinked;
+}
+
+# Start in daemon mode
+my $pid = 0;
+if($daemon) {
+    mkdir '/var/run/m3mta' if !-d '/var/run/m3mta';
+
+    # Fork a child process
+    $pid = fork;
+    if(!defined $pid || $pid < 0) {
+        die("Failed to fork process");
+    }
+}
+
+# Exit this if we're the parent process
+$pid and exit;
+
+if($daemon) {
+    # Set our session ID
+    setsid;
+    $pid = fork;
+    exit 0 if $pid;
+    exit 1 if not defined $pid;
+
+    # chdir to / (its safe, and lets system unmount things)
+    chdir '/' or die $!;
+
+    # Set our umask
+    umask(0);
+}
+
+# Handle --logfile parameter
+if($daemon || $logfile) {
+    # Close unwanted filehandles
+    close *STDIN;
+    close *STDERR;
+    close *STDOUT;
+
+    if($logfile) {
+        # Reopen filehandles
+        open STDIN, '<', '/dev/null' or die "Unable to open STDIN to /dev/null: $!";
+        open STDOUT, '>>', "$logfile.out" or die "Unable to open STDOUT to log file '$logfile.out': $!";
+        open STDERR, '>>', "$logfile.err" or die "Unable to open STDERR to log file '$logfile.err': $!";
+        *STDOUT->autoflush;
+        *STDERR->autoflush;
+    } else {
+        # Effectively disable logging
+        open STDIN, '<', '/dev/null' or die "Unable to open STDIN to /dev/null: $!";
+        open STDOUT, '<', '/dev/null' or die "Unable to open STDOUT to /dev/null: $!";
+        open STDERR, '<', '/dev/null' or die "Unable to open STDERR to /dev/null: $!";
+    }
+}
+
+if($pidfile) {
+    open my $fh, ">$pidfile" or die "Unable to write pidfile $pidfile";
+    print $fh $$;
+    close $fh;
+}
+
+print "Starting MDA daemon\n";
+$cfg ||= 'config.json';
+
 # Load configuration
-my $config = Config::Any->load_files({ files => ['config.json'], use_ext => 1 })->[0]->{'config.json'};
+my $config = Config::Any->load_files({ files => [$cfg], use_ext => 1 })->[0]->{$cfg};
 
 # Get connection to database
 my $client = MongoDB::MongoClient->new;

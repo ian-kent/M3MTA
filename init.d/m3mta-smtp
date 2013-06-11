@@ -9,7 +9,7 @@ CONFIG=/home/iankent/perlmail/config.json
 PIDFILE=/var/run/m3mta/smtp.pid
 LOGFILE=/home/iankent/perlmail/m3mta-smtp.log
 
-ARGS="--config --daemon --config=${CONFIG} --pidfile ${PIDFILE} --logfile ${LOGFILE}"
+ARGS="--daemon --config ${CONFIG} --pidfile ${PIDFILE} --logfile ${LOGFILE}"
 
 . /lib/lsb/init-functions
 

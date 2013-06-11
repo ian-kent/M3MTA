@@ -69,7 +69,7 @@ if($daemon) {
         die("Failed to fork process");
     }
 }
-print "PID: $pid\n";
+
 # Exit this if we're the parent process
 $pid and exit;
 
