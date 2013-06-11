@@ -1,0 +1,11 @@
+#!/bin/sh -e
+
+NAME=M3MTA
+
+MDA=/home/iankent/perlmail/init.d/m3mta-mda
+IMAP=/home/iankent/perlmail/init.d/m3mta-imap
+SMTP=/home/iankent/perlmail/init.d/m3mta-smtp
+
+${MDA} "$@"
+${IMAP} "$@"
+${SMTP} "$@"
