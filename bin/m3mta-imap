@@ -3,20 +3,14 @@
 # See http://www.netzmafia.de/skripten/unix/linux-daemon-howto.html
 # and http://www.perlmonks.org/?node_id=374409
 
-use Modern::Perl;
+use boolean;
 use Config::Any;
-use M3MTA::Server::IMAP;
 use Getopt::Long;
+use M3MTA::Server::IMAP;
+use M3MTA::Daemon;
+use Modern::Perl;
 
-use POSIX qw/ setsid /;
-use Cwd qw/ chdir /;
-use IO::Handle;
-
-my $stop = 0;
-my $daemon = 0;
-my $config = '';
-my $pidfile = '';
-my $logfile = '';
+my ($stop, $daemon, $config, $pidfile, $logfile);
 GetOptions(
     'stop' => \$stop,
     'daemon' => \$daemon,
@@ -25,97 +19,20 @@ GetOptions(
     'logfile=s' => \$logfile,
 );
 
-sub read_pid_file {
-    open my $fh, "<$pidfile" or die "Unable to open pidfile $pidfile";
-    my $realpid = <$fh>;
-    close $fh;
-    return $realpid;
-}
+my $imap_daemon = M3MTA::Daemon->new(
+    name => 'M3MTA-IMAP',
+    pidfile => $pidfile,
+    stdout => $logfile ? "$logfile.out" : undef,
+    stderr => $logfile ? "$logfile.err" : undef,
+);
 
-if($stop) {
-    if(-e $pidfile) {
-        my $realpid = read_pid_file;
-        
-        my $cnt = kill 9, $realpid;
-        die("Failed to kill process $realpid") if !$cnt;
+exit $imap_daemon->stop if $stop;
 
-        my $unlinked = unlink $pidfile;
-        die("Failed to delete pidfile $pidfile") if !$unlinked;
-
-        exit 0;
-    } else {
-        die("$pidfile not found");
+$imap_daemon->start(
+    begin => sub {
+        print "Starting IMAP daemon\n";
+        $config ||= 'config.json';
+        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{imap};
+        M3MTA::Server::IMAP->new(config => $cfg)->start;
     }
-}
-
-if(-e $pidfile) {
-    my $realpid = read_pid_file;
-
-    my $existing = kill 0, $realpid;
-    die("M3MTA-IMAP is already running") if $existing;
-
-    my $unlinked = unlink $pidfile;
-    die("pidfile '$pidfile' found but process doesn't exist, pidfile delete failed") if !$unlinked;
-}
-
-# Start in daemon mode
-my $pid = 0;
-if($daemon) {
-    mkdir '/var/run/m3mta' if !-d '/var/run/m3mta';
-
-    # Fork a child process
-    $pid = fork;
-    if(!defined $pid || $pid < 0) {
-        die("Failed to fork process");
-    }
-}
-
-# Exit this if we're the parent process
-$pid and exit;
-
-if($daemon) {
-    # Set our session ID
-    setsid;
-    $pid = fork;
-    exit 0 if $pid;
-    exit 1 if not defined $pid;
-
-    # chdir to / (its safe, and lets system unmount things)
-    chdir '/' or die $!;
-
-    # Set our umask
-    umask(0);
-}
-
-# Handle --logfile parameter
-if($daemon || $logfile) {
-    # Close unwanted filehandles
-    close *STDIN;
-    close *STDERR;
-    close *STDOUT;
-
-    if($logfile) {
-        # Reopen filehandles
-        open STDIN, '<', '/dev/null' or die "Unable to open STDIN to /dev/null: $!";
-        open STDOUT, '>>', "$logfile.out" or die "Unable to open STDOUT to log file '$logfile.out': $!";
-        open STDERR, '>>', "$logfile.err" or die "Unable to open STDERR to log file '$logfile.err': $!";
-        *STDOUT->autoflush;
-        *STDERR->autoflush;
-    } else {
-        # Effectively disable logging
-        open STDIN, '<', '/dev/null' or die "Unable to open STDIN to /dev/null: $!";
-        open STDOUT, '<', '/dev/null' or die "Unable to open STDOUT to /dev/null: $!";
-        open STDERR, '<', '/dev/null' or die "Unable to open STDERR to /dev/null: $!";
-    }
-}
-
-if($pidfile) {
-    open my $fh, ">$pidfile" or die "Unable to write pidfile $pidfile";
-    print $fh $$;
-    close $fh;
-}
-
-print "Starting IMAP daemon\n";
-$config ||= 'config.json';
-my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{imap};
-M3MTA::Server::IMAP->new(config => $cfg)->start;
+);
