@@ -1,8 +1,10 @@
 #!/usr/local/bin/perl
 
+use Config::Any;
 use M3MTA::Daemon;
 use M3MTA::MDA;
 use Getopt::Long;
+use Modern::Perl;
 
 my ($stop, $daemon, $config, $pidfile, $logfile);
 GetOptions(
@@ -26,11 +28,7 @@ $mda_daemon->start(
     begin => sub {        
         print "Starting MDA daemon\n";
         $config ||= 'config.json';
-
-        # Load configuration
         my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
-
-        # Start the delivery agent (never returns)
         M3MTA::MDA->new(config => $cfg)->block;
     }
 );
