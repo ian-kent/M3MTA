@@ -1,9 +1,5 @@
 #!/usr/local/bin/perl
 
-# See http://www.netzmafia.de/skripten/unix/linux-daemon-howto.html
-# and http://www.perlmonks.org/?node_id=374409
-
-use boolean;
 use Config::Any;
 use Getopt::Long;
 use M3MTA::Server::IMAP;
