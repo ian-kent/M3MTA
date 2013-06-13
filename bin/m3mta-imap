@@ -2,8 +2,8 @@
 
 use Config::Any;
 use Getopt::Long;
-use M3MTA::Server::IMAP;
 use M3MTA::Daemon;
+use M3MTA::Server::IMAP;
 use Modern::Perl;
 
 my ($stop, $daemon, $config, $pidfile, $logfile);
