@@ -4,8 +4,10 @@ package M3MTA::Server::SMTP::RFC2487;
 M3MTA::Server::SMTP::RFC2487 - STARTTLS
 =cut
 
+use Modern::Perl;
+use Moose;
+
 use IO::Socket::SSL;
-use Mouse;
 use Scalar::Util qw/weaken/;
 
 #------------------------------------------------------------------------------

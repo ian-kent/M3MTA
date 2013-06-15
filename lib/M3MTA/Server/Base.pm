@@ -2,12 +2,15 @@ package M3MTA::Server::Base;
 
 #-------------------------------------------------------------------------------
 
-use DateTime::Tiny;
 use Modern::Perl;
+use Moose;
+use DateTime::Tiny;
 use Mojo::IOLoop;
-use Mouse;
 
 #-------------------------------------------------------------------------------
+
+# Backend
+has 'backend'       => ( is => 'rw' );
 
 # RFC/Plugin hooks
 has 'commands'      => ( is => 'rw' );
@@ -21,6 +24,22 @@ has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } )
 # Server config
 has 'config'    => ( is => 'rw' );
 has 'ident'     => ( is => 'rw', default => sub { 'M3MTA' });
+
+#-------------------------------------------------------------------------------
+
+sub BUILD {
+    my ($self) = @_;
+
+    # Create backend
+    my $backend = $self->config->{backend};
+    if(!$backend) {
+        die("No backend found in server configuration");
+    }
+    
+    eval "require $backend" or die ("Unable to load backend $backend: $@");
+    $self->backend($backend->new(server => $self, config => $self->config));
+    $self->log("Created backend $backend");
+}
 
 #-------------------------------------------------------------------------------
 
@@ -139,4 +158,4 @@ sub accept {
 
 #-------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

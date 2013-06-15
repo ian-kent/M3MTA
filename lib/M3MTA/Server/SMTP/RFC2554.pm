@@ -4,9 +4,12 @@ package M3MTA::Server::SMTP::RFC2554;
 M3MTA::Server::SMTP::RFC2554 - SMTP AUTH
 =cut
 
-use Mouse;
 use Modern::Perl;
+use Moose;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
+
+#------------------------------------------------------------------------------
 
 sub register {
 	my ($self, $smtp) = @_;
@@ -17,11 +20,12 @@ sub register {
     }
     $smtp->register_rfc('RFC2554', $self);
 
-	# add commands/callbacks to list
+	# Register the AUTH command
 	$smtp->register_command(['AUTH'], sub {
         my ($session, $data) = @_;
 		$self->auth($session, $data);
 	});
+
     # Register a state hook to capture data
     $smtp->register_state(qr/^AUTHENTICATE-?$/, sub {
         my ($session) = @_;
@@ -31,14 +35,18 @@ sub register {
     # Add a list of commands to EHLO output
     $smtp->register_helo(sub {
         $self->helo(@_);
-    })
+    });
 }
+
+#------------------------------------------------------------------------------
 
 sub helo {
     my ($self) = @_;
     # TODO mechanism registration
     return "AUTH PLAIN LOGIN";
 }
+
+#------------------------------------------------------------------------------
 
 sub auth {
 	my ($self, $session, $data) = @_;
@@ -78,6 +86,8 @@ sub auth {
         }
     }
 }
+
+#------------------------------------------------------------------------------
 
 sub authenticate {
     my ($self, $session) = @_;
@@ -124,7 +134,7 @@ sub authenticate {
                 $session->user->{password} = $password;
                 $session->log("LOGIN: Username [" . $session->user->{username} . "], Password [$password]");
 
-                my $user = $session->smtp->_user_auth($session->user->{username}, $password);
+                my $user = $session->smtp->get_user($session->user->{username}, $password);
                 if(!$user) {
                     $session->respond(535, "LOGIN authentication failed");
                     $session->user(undef);
@@ -167,7 +177,7 @@ sub authenticate {
                 $username = $identity;
             }
 
-            my $authed = $session->smtp->_user_auth($username, $password);
+            my $authed = $session->smtp->get_user($username, $password);
             if(!$authed) {
                 $session->log("Authed: $authed");
                 $session->respond(535, "PLAIN authentication failed");
@@ -190,4 +200,6 @@ sub authenticate {
     return;
 }
 
-1;
+#------------------------------------------------------------------------------
+
+__PACKAGE__->meta->make_immutable;

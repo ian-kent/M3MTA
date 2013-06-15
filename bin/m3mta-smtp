@@ -20,6 +20,7 @@ my $smtp_daemon = M3MTA::Daemon->new(
     pidfile => $pidfile,
     stdout => $logfile ? "$logfile.out" : undef,
     stderr => $logfile ? "$logfile.err" : undef,
+    daemon => $daemon ? 1 : 0,
 );
 
 exit $smtp_daemon->stop if $stop;

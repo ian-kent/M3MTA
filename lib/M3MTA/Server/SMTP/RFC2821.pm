@@ -4,7 +4,8 @@ package M3MTA::Server::SMTP::RFC2821;
 M3MTA::Server::SMTP::RFC2821 - Basic SMTP
 =cut
 
-use Mouse;
+use Modern::Perl;
+use Moose;
 
 #------------------------------------------------------------------------------
 
@@ -144,7 +145,7 @@ sub mail {
     if($data =~ /^From:\s*<(.+)>$/i) {
         $session->log("Checking user against '%s'", $1);
         my $r = eval {
-            return $session->smtp->_user_send($session, $1);
+            return $session->smtp->can_user_send($session, $1);
         };
         $session->log("Error: %s", $@) if $@;
 
@@ -176,7 +177,7 @@ sub rcpt {
     if($data =~ /^To:\s*<(.+)>$/i) {
         print "Checking delivery for $1\n";
         my $r = eval {
-            return $session->smtp->_mail_accept($session, $1);
+            return $session->smtp->can_accept_mail($session, $1);
         };
         print "Error: $@\n" if $@;
         print "RESULT IS: $r\n";
@@ -224,7 +225,7 @@ sub data {
 
         $session->email->data($data);
 
-        $session->respond($session->smtp->_queued($session->email));
+        $session->respond($session->smtp->queue_message($session->email));
 
         $session->state('FINISHED');
         $session->buffer('');
@@ -233,4 +234,4 @@ sub data {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

@@ -3,6 +3,8 @@
         "hostname": "gateway.dc4",
         "ports": [ 25 ],
 
+        "backend": "M3MTA::Server::Backend::MongoDB::SMTP",
+
         "relay": {
             "auth": 1,
             "anon": 0 
@@ -18,11 +20,16 @@
         }
     },
     "mda": {
-        "hostname": "gateway.dc4"
+        "hostname": "gateway.dc4",
+
+        "backend": "M3MTA::Server::Backend::MongoDB::MDA"
     },
     "imap": {
         "hostname": "gateway.dc4",
         "ports": [ 143 ],
+
+        "backend": "M3MTA::Server::Backend::MongoDB::IMAP",
+
         "field_separator": "/",
         "database": {
             "hostname": "127.0.0.1",

@@ -1,10 +1,11 @@
-package M3MTA::Server::SMTP::Email;
+package M3MTA::Server::SMTP::Message;
 
 =head NAME
-M3MTA::Server::SMTP::RFC2487 - STARTTLS
+M3MTA::Server::SMTP::Message - SMTP Message
 =cut
 
-use Mouse;
+use Modern::Perl;
+use Moose;
 
 #------------------------------------------------------------------------------
 
@@ -27,4 +28,4 @@ sub to_hash {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

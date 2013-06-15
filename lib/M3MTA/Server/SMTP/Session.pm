@@ -1,10 +1,10 @@
 package M3MTA::Server::SMTP::Session;
 
 use Modern::Perl;
-use Mouse;
-use Data::Dumper;
+use Moose;
 
-use M3MTA::Server::SMTP::Email;
+use Data::Dumper;
+use M3MTA::Server::SMTP::Message;
 
 #------------------------------------------------------------------------------
 
@@ -59,7 +59,7 @@ sub begin {
     }
 
     $self->buffer('');
-    $self->email(new M3MTA::Server::SMTP::Email);
+    $self->email(new M3MTA::Server::SMTP::Message);
     $self->state('ACCEPT');
 
     $self->stream->on(error => sub {
