@@ -2,12 +2,15 @@
 
 NAME=M3MTA-SMTP
 
+SCRIPT=`readlink -f $0`
+SCRIPTPATH=`dirname $SCRIPT`
+
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-DAEMON=/home/iankent/perlmail/bin/m3mta-smtp
-export PERL5LIB=/home/iankent/perlmail/lib:${PERL5LIB}
-CONFIG=/home/iankent/perlmail/config.json
+DAEMON=${SCRIPTPATH}/../bin/m3mta-smtp
+export PERL5LIB=${SCRIPTPATH}/../lib:${PERL5LIB}
+CONFIG=${SCRIPTPATH}/../config.json
 PIDFILE=/var/run/m3mta/smtp.pid
-LOGFILE=/home/iankent/perlmail/m3mta-smtp.log
+LOGFILE=/var/log/m3mta/smtp.log
 
 ARGS="--daemon --config ${CONFIG} --pidfile ${PIDFILE} --logfile ${LOGFILE}"
 

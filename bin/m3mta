@@ -1,8 +1,11 @@
 #!/bin/sh -e
 
-MDA=/home/iankent/perlmail/init.d/m3mta-mda
-IMAP=/home/iankent/perlmail/init.d/m3mta-imap
-SMTP=/home/iankent/perlmail/init.d/m3mta-smtp
+SCRIPT=`readlink -f $0`
+SCRIPTPATH=`dirname $SCRIPT`
+
+MDA=${SCRIPTPATH}/../init.d/m3mta-mda
+IMAP=${SCRIPTPATH}/../init.d/m3mta-imap
+SMTP=${SCRIPTPATH}/../init.d/m3mta-smtp
 
 ${MDA} "$@"
 ${IMAP} "$@"

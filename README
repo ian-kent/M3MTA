@@ -1,0 +1,39 @@
+M3MTA
+=====
+
+INSTALL
+
+    If you're using M3MTA in daemon mode, you'll need to run
+    ./install
+    to create /var/log/m3mta and /var/run/m3mta before use.
+
+    In console mode, no log file or PID file are required.
+
+RUNNING
+
+    Start IMAP, SMTP and MDA:
+        ./bin/m3mta start
+
+    Stop IMAP, SMTP and MDA:
+        ./bin/m3mta stop
+
+    Start server or MDA in daemon mode:
+        ./init.d/m3mta-imap start
+        ./init.d/m3mta-smtp start
+        ./init.d/m3mta-mda start
+
+    Stop server or MDA in daemon mode:
+        ./init.d/m3mta-imap stop
+        ./init.d/m3mta-smtp stop
+        ./init.d/m3mta-mda stop
+
+    Start server or MDA in console mode:
+        ./bin/m3mta-imap start
+        ./bin/m3mta-smtp start
+        ./bin/m3mta-mda start
+
+        Use Ctrl<C> to stop.
+
+CONFIGURATION
+
+    Edit ./config.json

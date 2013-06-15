@@ -2,12 +2,15 @@
 
 NAME=M3MTA-MDA
 
+SCRIPT=`readlink -f $0`
+SCRIPTPATH=`dirname $SCRIPT`
+
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-DAEMON=/home/iankent/perlmail/bin/m3mta-mda
-export PERL5LIB=/home/iankent/perlmail/lib:${PERL5LIB}
-CONFIG=/home/iankent/perlmail/config.json
+DAEMON=${SCRIPTPATH}/../bin/m3mta-mda
+export PERL5LIB=${SCRIPTPATH}/../lib:${PERL5LIB}
+CONFIG=${SCRIPTPATH}/../config.json
 PIDFILE=/var/run/m3mta/mda.pid
-LOGFILE=/home/iankent/perlmail/m3mta-mda.log
+LOGFILE=/var/log/m3mta/mda.log
 
 ARGS="--daemon --config ${CONFIG} --pidfile ${PIDFILE} --logfile ${LOGFILE}"
 

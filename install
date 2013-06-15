@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ ! -e /var/run/m3mta ]; then
+    mkdir -p /var/run/m3mta
+fi
+
+if [ ! -e /var/log/m3mta ]; then
+    mkdir -p /var/log/m3mta
+fi
+
+echo M3MTA install complete
