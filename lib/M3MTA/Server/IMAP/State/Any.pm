@@ -4,8 +4,9 @@ package M3MTA::Server::IMAP::State::Any;
 M3MTA::Server::IMAP::State::Any
 =cut
 
-use Mouse;
 use Modern::Perl;
+use Moose;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 #------------------------------------------------------------------------------
@@ -76,4 +77,4 @@ sub logout {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

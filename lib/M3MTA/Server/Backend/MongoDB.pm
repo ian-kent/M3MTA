@@ -3,6 +3,8 @@ package M3MTA::Server::Backend::MongoDB;
 use Modern::Perl;
 use Moose;
 
+use MongoDB::MongoClient;
+
 # Database
 has 'client'    => ( is => 'rw' );
 has 'database'  => ( is => 'rw' );

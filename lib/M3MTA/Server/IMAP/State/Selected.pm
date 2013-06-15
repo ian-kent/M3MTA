@@ -4,8 +4,9 @@ package M3MTA::Server::IMAP::State::Selected;
 M3MTA::Server::IMAP::State::Selected
 =cut
 
-use Mouse;
 use Modern::Perl;
+use Moose;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 #------------------------------------------------------------------------------
@@ -49,23 +50,16 @@ sub uid {
 
 	$session->log("UID command got subcommand [$cmd] with args [$args]");
 
-	for($cmd) {
-		when (/FETCH/) {
-			$session->log("Performing UID FETCH");
-			return $self->uid_fetch($session, $id, $args);
-		}
-		when (/SEARCH/) {
+    return 0 if $cmd !~ /FETCH|SEARCH|COPY|STORE/;
 
-		}
-		when (/COPY/) {
-
-		}
-		when (/STORE/) {
-			$session->log("Performing UID STORE");
-			return $self->uid_store($session, $id, $args);
-		}
-	}
-
+    $session->log("Performing UID $cmd");
+    $cmd = lc "uid_$cmd";
+    if($self->can($cmd)) {
+        return $self->$cmd($session, $id, $args);
+    } else {
+        $session->log("Unable to call $cmd, not implemented");
+    }
+	
 	return 0;	
 }
 
@@ -143,70 +137,15 @@ sub uid_store {
         my $params = $4;
         $session->log("Got FROM: $1, 2[$2], TO: $3, ARGS: $params");
 
-        my $pmap = $self->get_param_map($session, $params);
+        my $pmap = $self->get_param_map($session, $from, $to, $params);
 
-        my $query = {
-            mailbox => {
-                domain => $session->auth->{user}->{domain},
-                user => $session->auth->{user}->{mailbox},
-            },
-            path => $session->selected,
-            uid => int($from),
-        };
-        my $query2 = {
-            mailbox => {
-                domain => $session->auth->{user}->{domain},
-                user => $session->auth->{user}->{mailbox},
-            },
-        };
-        print Dumper $query;
-        my $msg = $session->imap->store->find_one($query);
-        my $mbox = $session->imap->mailboxes->find_one($query2);
-
-        if(!$msg) {
-        	$session->respond($id, 'BAD', 'Message not found');
-        	return 1;
+        my $result = $session->imap->uid_store($session, $pmap);
+        if($result) {
+            $session->respond($id, 'OK', 'STORE successful');
+        } else {
+            $session->respond($id, 'BAD', 'Message not found');
         }
-
-        my $dirty = 0;
-        my $dirty2 = 0;
-
-        if($pmap->{'+Flags'}) {
-        	my @flags = $msg->{flags} ? @{$msg->{flags}} : ();
-	        $session->log("Message already has flags: [%s]", (join ', ', @flags));
-	        my %flag_map = map { $_ => 1 } @flags;
-
-        	for my $flag (keys %{$pmap->{'+Flags'}}) {
-				if(!$flag_map{$flag}) {
-					$flag_map{$flag} = 1;
-					$dirty = 1;
-					if($flag_map{'\\Unseen'}) {
-						delete $flag_map{'\\Unseen'};
-						$mbox->{store}->{$session->selected}->{unseen}--;
-						$dirty2 = 1;
-					}
-					if($flag_map{'\\Recent'}) {
-						delete $flag_map{'\\Recent'};
-						$mbox->{store}->{$session->selected}->{recent}--;
-						$dirty2 = 1;
-					}
-				}
-        	}
-
-        	$msg->{flags} = [keys %flag_map];
-        	print Dumper $msg->{flags};
-        }
-
-        if($dirty) {
-        	$session->log("Updating message in store");
-        	$session->imap->store->update($query, $msg);
-    	}
-    	if($dirty2) {
-    		$session->log("Updating mailbox");
-    		$session->imap->mailboxes->update($query2, $mbox);
-    	}
-
-        $session->respond($id, 'OK', 'STORE successful');
+        
         return 1;
     }
 
@@ -240,11 +179,11 @@ sub uid_fetch {
         }
         use Data::Dumper;
         $session->log(Dumper $query);
-        my $messages = $session->imap->store->find($query);
+        my $messages = $session->imap->fetch_messages($session, $query);
 
         my $pmap = $self->get_param_map($session, $params);
 
-       	while (my $email = $messages->next) {   
+       	foreach my $email (@$messages) {   
 
        		my $response = "* " . $email->{uid} . " FETCH (UID " . $email->{uid} . " ";
        		my $extra = '';
@@ -345,4 +284,4 @@ sub uid_fetch {
 	return 1;
 }
 
-1;
+__PACKAGE__->meta->make_immutable;

@@ -4,12 +4,10 @@ package M3MTA::Server::IMAP;
 M3MTA::Server::SMTP - Mojo::IOLoop based SMTP server
 =cut
 
-use MIME::Base64 qw/ decode_base64 encode_base64 /;
-use MongoDB::MongoClient;
-use M3MTA::Server::IMAP::Session;
-use Mouse;
+use Moose;
 extends 'M3MTA::Server::Base';
 
+use M3MTA::Server::IMAP::Session;
 use M3MTA::Server::IMAP::State::NotAuthenticated;
 use M3MTA::Server::IMAP::State::Authenticated;
 use M3MTA::Server::IMAP::State::Selected;
@@ -17,18 +15,6 @@ use M3MTA::Server::IMAP::State::Any;
 
 #------------------------------------------------------------------------------
 
-# Database
-has 'client'    => ( is => 'rw' );
-has 'database'  => ( is => 'rw' );
-
-# Collections
-has 'mailboxes' => ( is => 'rw' );
-has 'store'     => ( is => 'rw' );
-
-# Callbacks
-has 'user_auth' => ( is => 'rw' );
-
-# RFC implementations
 has 'states'   => ( is => 'rw', default => sub { {} } );
 has 'default_state' => ( is => 'rw', default => sub { 'NotAuthenticated' } );
 
@@ -36,14 +22,6 @@ has 'default_state' => ( is => 'rw', default => sub { 'NotAuthenticated' } );
 
 sub BUILD {
     my ($self) = @_;
-
-    # Setup database
-    $self->client(MongoDB::MongoClient->new);
-    $self->database($self->client->get_database($self->config->{database}->{database}));
-
-    # Get collections
-    $self->mailboxes($self->database->get_collection($self->config->{database}->{mailboxes}->{collection}));
-    $self->store($self->database->get_collection($self->config->{database}->{store}->{collection}));
 
     # Initialise states
     M3MTA::Server::IMAP::State::NotAuthenticated->new->register($self);
@@ -59,16 +37,14 @@ sub accept {
 
     $self->log("Session accepted with id %s", $id);
 
-    my $session = new M3MTA::Server::IMAP::Session(
+    M3MTA::Server::IMAP::Session->new(
         imap => $self, 
         stream => $stream,
         loop => $loop,
         id => $id,
         server => $loop->{acceptors}{$server},
         state => $self->default_state,
-    );
-
-    $session->begin;
+    )->begin;
 
     return;
 }
@@ -90,60 +66,72 @@ sub register_state {
 
 #------------------------------------------------------------------------------
 
-sub _user_auth {
+sub get_user {
     my ($self, $username, $password) = @_;
-    print "User auth for username [$username] with password [$password]\n";
-
-    my $user = $self->mailboxes->find_one({username => $username, password => $password});
-    print "Error: $@\n" if $@;
-
-    return $user;
+    
+    return $self->backend->get_user($username, $password);
 }
 
 #------------------------------------------------------------------------------
 
-sub _store_message {
+sub append_message {
     my ($self, $session, $mailbox, $flags, $content) = @_;
 
-    # TODO
-    $self->log("Storing message to mailbox [$mailbox] with flags [$flags]");
+    return $self->backend->append_message($session, $mailbox, $flags, $content);
+}
 
-    # Make the message for the store
-    my $mbox = $session->auth->{user}->{store}->{$mailbox};
+sub fetch_messages {
+    my ($self, $session, $query) = @_;
 
-    my $obj = parse($content);
+    return $self->backend->fetch_messages($session, $query);
+}
 
-    my @flgs = split /\s/, $flags;
-    push @flgs, '\\Recent';
+sub create_folder {
+    my ($self, $session, $path) = @_;
 
-    my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-    my $mb = $session->imap->mailboxes->find_one($mboxid);
-    use Data::Dumper;
-    $self->log("Loaded mb:\n%s", (Dumper $mb));
+    return $self->backend->create_folder($session, $path);
+}
 
-    my $msg = {
-        uid => $mb->{store}->{children}->{$mailbox}->{nextuid},
-        message => $obj,
-        mailbox => { domain => $session->auth->{user}->{domain}, user => $session->auth->{user}->{mailbox} },
-        path => $mailbox,
-        flags => \@flgs,
-    };
+sub delete_folder {
+    my ($self, $session, $path) = @_;
 
-    # Update mailbox next UID
-    $self->mailboxes->update({mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}}, {
-        '$inc' => {
-            "store.children.$mailbox.nextuid" => 1,
-            "store.children.$mailbox.recent" => 1,
-            "store.children.$mailbox.unseen" => 1,
-            "store.children.$mailbox.exists" => 1,
-        } 
-    } );
+    return $self->backend->delete_folder($session, $path);
+}
 
-    # Save it to the database
-    my $oid = $self->store->insert($msg);
-    $self->log("Message stored with ObjectID [$oid], UID [" . $msg->{uid} . "]\n");
+sub rename_folder {
+    my ($self, $session, $path, $to) = @_;
 
-    return 1;
+    return $self->backend->rename_folder($session, $path, $to);
+}
+
+sub select_folder {
+    my ($self, $session, $path, $mode) = @_;
+
+    return $self->backend->select_folder($session, $path, $mode);
+}
+
+sub subcribe_folder {
+    my ($self, $session, $path) = @_;
+
+    return $self->backend->subscribe_folder($session, $path);
+}
+
+sub unsubcribe_folder {
+    my ($self, $session, $path) = @_;
+
+    return $self->backend->unsubscribe_folder($session, $path);
+}
+
+sub fetch_folders {
+    my ($self, $session, $ref, $filter, $subscribed) = @_;
+
+    return $self->backend->fetch_folders($session, $ref, $filter, $subscribed);
+}
+
+sub uid_store {
+    my ($self, $session, $from, $to, $params) = @_;
+
+    return $self->backend->uid_store($session, $from, $to, $params);
 }
 
 #------------------------------------------------------------------------------
@@ -180,4 +168,4 @@ sub parse {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

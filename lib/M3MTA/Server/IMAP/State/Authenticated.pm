@@ -4,8 +4,9 @@ package M3MTA::Server::IMAP::State::Authenticated;
 M3MTA::Server::IMAP::State::Authenticated
 =cut
 
-use Mouse;
 use Modern::Perl;
+use Moose;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 #------------------------------------------------------------------------------
@@ -42,33 +43,23 @@ sub select {
 	$read_write = 'READ-ONLY' if $examine;
 	my $cmd = $examine ? 'EXAMINE' : 'SELECT';
 
-	my ($sub) = $data =~ /"(.*)"/;
-    if($session->auth->{user}->{store}->{children}->{$sub}) {
-        my $exists = $session->auth->{user}->{store}->{children}->{$sub}->{seen} + $session->auth->{user}->{store}->{children}->{$sub}->{unseen};
-        my $recent = $session->auth->{user}->{store}->{children}->{$sub}->{unseen};
-        my $permflags = '\Deleted \Seen \*';
-        my $storeflags = '\Unseen'; # think this is flags used by the current mailbox?
-        my $uidnext = $session->auth->{user}->{store}->{children}->{$sub}->{nextuid};
-        my $unseen = $session->auth->{user}->{store}->{children}->{$sub}->{first_unseen} // $uidnext;
-        my $validity = $session->auth->{user}->{validity}->{$sub} // 1;
+	my ($path) = $data =~ /"(.*)"/;
 
-        $session->respond('*', $exists . ' EXISTS');
-        $session->respond('*', $recent . ' RECENT');
-        $session->respond('*', "OK [UNSEEN $unseen]");
-        $session->respond('*', "OK [UIDVALIDITY $validity]");
-        $session->respond('*', "OK [UIDNEXT $uidnext]");
-        $session->respond('*', "FLAGS ($storeflags)");
-        $session->respond('*', "OK [PERMANENTFLAGS ($permflags)");               
+	my $result = $session->imap->select_folder($session, $path, $read_write);
+	
+	if($result) {
+		for my $data (@$result) {
+			$session->respond('*', $data);
+		}
 
-        $session->respond($id, "OK [$read_write] $cmd completed");
-
-        $session->selected($sub);
+		$session->respond($id, "OK [$read_write] $cmd completed");
+        $session->selected($path);
     	$session->state('Selected');
-    } else {
-    	$session->respond($id, "NO $cmd failed, no such mailbox");
+	} else {
+		$session->respond($id, "NO $cmd failed, no such mailbox");
     	$session->selected(undef);
     	$session->state('Authenticated');
-    }
+	}
 
 	return 1;
 }
@@ -88,29 +79,13 @@ sub create {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	# make sure path doesn't exist
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
-	if($mbox->{store}->{children}->{$path}) {
+	my $result = $session->imap->create_folder($session, $path);
+
+	if($result) {
+		$session->respond($id, 'OK', 'CREATE successful');
+	} else {
 		$session->respond($id, 'BAD', 'CREATE failed; path already exists');
-		return 1;
 	}
-
-	$session->imap->mailboxes->update($mboxid, {
-		'$set' => {
-			"store.children.$path" => {
-				"seen" => 0,
-				"unseen" => 0,
-				"recent" => 0,
-				"nextuid" => 1
-			}
-		},
-		'$inc' => {
-			"validity.$path" => 1,
-		}
-	});
-
-	$session->respond($id, 'OK', 'CREATE successful');
 
 	return 1;
 }
@@ -122,23 +97,13 @@ sub delete {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	# make sure path exists
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
-	if(!$mbox->{store}->{children}->{$path}) {
+	my $result = $session->imap->delete_folder($session, $path);
+
+	if($result) {
+		$session->respond($id, 'OK', 'DELETE successful');
+	} else {
 		$session->respond($id, 'BAD', 'DELETE failed; path doesn\'t exist');
-		return 1;
 	}
-
-	$session->imap->mailboxes->update($mboxid, {
-		'$unset' => {
-			"store.children.$path" => 1
-		}
-	});
-
-	# TODO remove items from store
-
-	$session->respond($id, 'OK', 'DELETE successful');
 
 	return 1;
 }
@@ -150,28 +115,12 @@ sub rename {
 
 	my ($path, $to) = $data =~ /^"(.*)"\s"(.*)"$/;
 
-	# make sure path exists
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
-	if(!$mbox->{store}->{children}->{$path}) {
+	my $result = $session->imap->rename_folder($session, $path, $to);
+	if($result) {
+		$session->respond($id, 'OK', 'RENAME successful');
+	} else {
 		$session->respond($id, 'BAD', 'RENAME failed; path doesn\'t exist');
-		return 1;
 	}
-
-	$session->imap->mailboxes->update($mboxid, {
-		'$set' => {
-			"store.children.$to" => $mbox->{store}->{children}->{$path},
-			"validity.$to" => $mbox->{validity}->{$path}
-		},
-		'$unset' => {
-			"store.children.$path" => 1,
-			#"validity.$path" => 1 # Don't change - we want to leave validity alone, rename is same as delete
-		}
-	});
-
-	# TODO change paths in store
-
-	$session->respond($id, 'OK', 'RENAME successful');
 
 	return 1;
 }
@@ -183,12 +132,7 @@ sub subscribe {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	$session->imap->mailboxes->update($mboxid, {
-		'$set' => {
-			"subscribe.$path" => 1
-		}
-	});
+	$session->imap->subscribe_folder($path);
 
 	$session->respond($id, 'OK', 'SUBSCRIBE successful');
 
@@ -202,29 +146,11 @@ sub unsubscribe {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	$session->imap->mailboxes->update($mboxid, {
-		'$set' => {
-			"subscribe.$path" => 0
-		}
-	});
+	$session->imap->unsubscribe_folder($path);
 
 	$session->respond($id, 'OK', 'UNSUBSCRIBE successful');
 
 	return 1;
-}
-
-#------------------------------------------------------------------------------
-
-sub _get_store_node {
-	my ($self, $session, $ref) = @_;
-
-	# TODO change node based on reference name
-
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
-
-	return $mbox->{store};
 }
 
 #------------------------------------------------------------------------------
@@ -236,18 +162,15 @@ sub list {
 
 	$session->log("LIST Looking for mailboxes matching [%s] for reference name [%s]", $mailbox, $ref);
 
-	my $store_node = $self->_get_store_node($session, $ref);
-
 	$mailbox = '' if $mailbox eq '*';
-	my $re = qr/($mailbox)/;
 
-	# TODO should be recursive?
-    for my $sub (keys %{$store_node->{children}}) {
-    	my $flags = '\\HasNoChildren';
-    	if(!$mailbox || $sub =~ $re) {
-        	$session->respond('*', 'LIST (' . $flags . ') "' . $session->imap->config->{field_separator} . '"', $sub);
-        }
-    }
+	my $result = $session->imap->fetch_folders($session, $ref, $mailbox);
+	if($result) {
+		for my $folder (@$result) {
+			$session->respond('*', 'LIST (' . $folder->{flags} . ') "' . $session->imap->config->{field_separator} . '"', $folder->{path});
+		}
+	}
+    
     $session->respond($id, 'OK');
 
 	return 1;
@@ -264,26 +187,15 @@ sub lsub {
 
 	$session->log("LSUB Looking for mailboxes matching [%s] for reference name [%s]", $mailbox, $ref);
 
-	my $store_node = $self->_get_store_node($session, $ref);
+	$mailbox = '' if $mailbox eq '*';
 
-	my $re;
-	if ($mailbox eq '*') {
-		$mailbox = undef;
-		$re = qr/($mailbox)/;
+	my $result = $session->imap->fetch_folders($session, $ref, $mailbox, 1);
+	if($result) {
+		for my $folder (@$result) {
+			$session->respond('*', 'LSUB (' . $folder->{flags} . ') "' . $session->imap->config->{field_separator} . '"', $folder->{path});
+		}
 	}
 
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
-
-	# TODO should be recursive?
-    for my $sub (keys %{$store_node->{children}}) {
-    	my $flags = '\\HasNoChildren';
-
-    	next if !$mbox->{subscriptions}->{$sub};
-    	if(!$mailbox || $sub =~ $re) {
-        	$session->respond('*', 'LSUB (' . $flags . ') "' . $session->imap->config->{field_separator} . '"', $sub);
-        }
-    }
     $session->respond($id, 'OK');
 
 	return 1;
@@ -319,7 +231,7 @@ sub append {
 
 			$content =~ s/\r\n\r\n$//m;
 
-			my $result = $session->imap->_store_message($session, $mailbox, $flags, $content);
+			my $result = $session->imap->append_message($session, $mailbox, $flags, $content);
 			if($result) {
 				$session->respond($id, 'OK', 'APPEND completed');
 			} else {
@@ -332,4 +244,4 @@ sub append {
 }
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

@@ -4,8 +4,9 @@ package M3MTA::Server::IMAP::State::NotAuthenticated;
 M3MTA::Server::IMAP::State::NotAuthenticated
 =cut
 
-use Mouse;
 use Modern::Perl;
+use Moose;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 #------------------------------------------------------------------------------
@@ -73,7 +74,7 @@ sub login {
 	my ($self, $session, $id, $data) = @_;
 
 	my ($username, $password) = $data =~ /"(.*)"\s"(.*)"/; # TODO quotes not always provided
-    my $user = $session->imap->_user_auth($username, $password);
+    my $user = $session->imap->get_user($username, $password);
     if($user) {
         $session->auth({});
         $session->auth->{success} = 1;
@@ -118,4 +119,4 @@ sub starttls {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;

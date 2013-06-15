@@ -6,7 +6,6 @@ extends 'M3MTA::Server::Backend::SMTP', 'M3MTA::Server::Backend::MongoDB';
 use Data::Uniqid qw/ luniqid /;
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 use Data::Dumper;
-use MongoDB::MongoClient;
 
 # Collections
 has 'queue'     => ( is => 'rw' );

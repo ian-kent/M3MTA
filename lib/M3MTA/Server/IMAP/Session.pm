@@ -105,11 +105,6 @@ sub receive {
         }
     }
 
-    print STDERR "\n\n" . ("=" x 80) . "\n\n";
-    print STDERR "Command not understood:\n";
-    print STDERR "$id $cmd $data";
-    print STDERR "\n\n" . ("=" x 80) . "\n\n";
-
     # Otherwise its a bad command
     $self->respond($id, 'BAD', "Command not understood.");
 
