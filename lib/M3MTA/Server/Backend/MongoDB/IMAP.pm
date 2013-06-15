@@ -4,6 +4,8 @@ use Modern::Perl;
 use Moose;
 extends 'M3MTA::Server::Backend::IMAP', 'M3MTA::Server::Backend::MongoDB';
 
+use M3MTA::Util;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 # Collections
@@ -49,15 +51,17 @@ override 'append_message' => sub {
     $self->log("Storing message to mailbox [$mailbox] with flags [$flags]");
 
     # Make the message for the store
-    my $mbox = $session->auth->{user}->{store}->{$mailbox};
-
-    my $obj = $self->parse($content);
+    my $obj = M3MTA::Util::parse($content);
 
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';
 
-    my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
+    my $mboxid = {
+    	mailbox => $session->auth->{user}->{mailbox},
+    	domain => $session->auth->{user}->{domain}
+    };
     my $mb = $self->mailboxes->find_one($mboxid);
+
     use Data::Dumper;
     $self->log("Loaded mb:\n%s", (Dumper $mb));
 
@@ -187,14 +191,20 @@ override 'rename_folder' => sub {
 override 'select_folder' => sub {
 	my ($self, $session, $path, $mode) = @_;
 
-	if($session->auth->{user}->{store}->{children}->{$path}) {
-        my $exists = $session->auth->{user}->{store}->{children}->{$path}->{seen} + $session->auth->{user}->{store}->{children}->{$path}->{unseen};
-        my $recent = $session->auth->{user}->{store}->{children}->{$path}->{unseen};
+	my $mboxid = {
+    	mailbox => $session->auth->{user}->{mailbox},
+    	domain => $session->auth->{user}->{domain}
+    };
+    my $mb = $self->mailboxes->find_one($mboxid);
+
+	if($mb->{store}->{children}->{$path}) {
+        my $exists = $mb->{store}->{children}->{$path}->{seen} + $mb->{store}->{children}->{$path}->{unseen};
+        my $recent = $mb->{store}->{children}->{$path}->{unseen};
         my $permflags = '\Deleted \Seen \*';
         my $storeflags = '\Unseen'; # think this is flags used by the current mailbox?
-        my $uidnext = $session->auth->{user}->{store}->{children}->{$path}->{nextuid};
-        my $unseen = $session->auth->{user}->{store}->{children}->{$path}->{first_unseen} // $uidnext;
-        my $validity = $session->auth->{user}->{validity}->{$path} // 1;
+        my $uidnext = $mb->{store}->{children}->{$path}->{nextuid};
+        my $unseen = $mb->{store}->{children}->{$path}->{first_unseen} // $uidnext;
+        my $validity = $mb->{validity}->{$path} // 1;
 
         my @data;
 

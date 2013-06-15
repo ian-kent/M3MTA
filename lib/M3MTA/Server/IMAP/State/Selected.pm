@@ -137,9 +137,9 @@ sub uid_store {
         my $params = $4;
         $session->log("Got FROM: $1, 2[$2], TO: $3, ARGS: $params");
 
-        my $pmap = $self->get_param_map($session, $from, $to, $params);
+        my $pmap = $self->get_param_map($session, $params);
 
-        my $result = $session->imap->uid_store($session, $pmap);
+        my $result = $session->imap->uid_store($session, $from, $to, $pmap);
         if($result) {
             $session->respond($id, 'OK', 'STORE successful');
         } else {
@@ -224,7 +224,7 @@ sub uid_fetch {
                     }
 	        		$len += length($ht);
 	        	}
-	        	$len += length($email->{message}->{body}) + 4;
+	        	$len += length($email->{message}->{body});
 	        	$response .= ' NIL NIL "7BIT" ' . $lines . ' ' . $len . ')';
 	        }
 
@@ -262,7 +262,7 @@ sub uid_fetch {
                         $extra .= $hdr . ': ' . $h . "\r\n";
                     }
                 }
-                $extra .= "\r\n" . $email->{message}->{body};
+                $extra .= "\r\n" . $email->{message}->{body} . "\r\n";
                 if($pmap->{'BODY'}) {
                 	$response .= 'BODY[] ';
             	} else {
@@ -271,8 +271,7 @@ sub uid_fetch {
 	        }
 
 	        if($extra) {
-	        	$extra .= "\r\n";
-	        	$response .= "{" . (length $extra) . "}\r\n$extra\r\n";
+	        	$response .= "{" . (length $extra) . "}\r\n$extra";
 			}
 
 	        $response .= ")";

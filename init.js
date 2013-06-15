@@ -16,22 +16,22 @@ queue.insert({
         "_id" : ObjectId("51a666b2b7e1521979000000"),
         "created" : ISODate("2013-05-29T20:36:02Z"),
         "to" : [
-                "iankent@gateway.dc4"
+                "iankent@iankent.no-ip.biz"
         ],
-        "from" : "iankent@gateway.dc4",
-        "data" : "Message-ID: <51A66796.5070801@gateway.dc4>\r\nDate: Wed, 29 May 2013 21:39:50 +0100\r\nFrom: Gateway Test <iankent@gateway.dc4>\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130328 Thunderbird/17.0.5\r\nMIME-Version: 1.0\r\nTo: iankent@gateway.dc4\r\nSubject: test 1\r\nContent-Type: text/plain; charset=ISO-8859-1; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n\r\ntest 1",
-        "id" : "il1k2GGTG5Zg0L7RNdn@gateway.dc4",
+        "from" : "iankent@iankent.no-ip.biz",
+        "data" : "Message-ID: <51A66796.5070801@iankent.no-ip.biz>\r\nDate: Wed, 29 May 2013 21:39:50 +0100\r\nFrom: Gateway Test <iankent@iankent.no-ip.biz>\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130328 Thunderbird/17.0.5\r\nMIME-Version: 1.0\r\nTo: iankent@iankent.no-ip.biz\r\nSubject: test 1\r\nContent-Type: text/plain; charset=ISO-8859-1; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n\r\ntest 1",
+        "id" : "il1k2GGTG5Zg0L7RNdn@iankent.no-ip.biz",
         "helo" : "[192.168.100.64]"
 });
 queue.insert({
         "_id" : ObjectId("51a666beb7e1521979000001"),
         "created" : ISODate("2013-05-29T20:36:14Z"),
         "to" : [
-                "iankent@gateway.dc4"
+                "iankent@iankent.no-ip.biz"
         ],
-        "from" : "iankent@gateway.dc4",
-        "data" : "Message-ID: <51A667A2.4030904@gateway.dc4>\r\nDate: Wed, 29 May 2013 21:40:02 +0100\r\nFrom: Gateway Test <iankent@gateway.dc4>\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130328 Thunderbird/17.0.5\r\nMIME-Version: 1.0\r\nTo: iankent@gateway.dc4\r\nSubject: test 2\r\nContent-Type: text/plain; charset=ISO-8859-1; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n\r\ntest 2",
-        "id" : "mHj1H7JY6JJWcmGSGFz@gateway.dc4",
+        "from" : "iankent@iankent.no-ip.biz",
+        "data" : "Message-ID: <51A667A2.4030904@iankent.no-ip.biz>\r\nDate: Wed, 29 May 2013 21:40:02 +0100\r\nFrom: Gateway Test <iankent@iankent.no-ip.biz>\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130328 Thunderbird/17.0.5\r\nMIME-Version: 1.0\r\nTo: iankent@iankent.no-ip.biz\r\nSubject: test 2\r\nContent-Type: text/plain; charset=ISO-8859-1; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n\r\ntest 2",
+        "id" : "mHj1H7JY6JJWcmGSGFz@iankent.no-ip.biz",
         "helo" : "[192.168.100.64]"
 });
 
@@ -42,7 +42,7 @@ domains.insert({
     "delivery": "relay"
 });
 domains.insert({
-    "domain": "gateway.dc4",
+    "domain": "iankent.no-ip.biz",
     "delivery": "local"
 });
 
@@ -50,9 +50,9 @@ domains.insert({
 
 mailboxes.insert({
     // Should delivery locally
-    "domain": "gateway.dc4",
+    "domain": "iankent.no-ip.biz",
     "mailbox": "iankent",
-    "username": "iankent@gateway.dc4",
+    "username": "iankent@iankent.no-ip.biz",
     "password": "test",
     "relay": 1,
     "delivery": {
@@ -111,22 +111,22 @@ store.insert({
     "uid" : 1,
     "path" : "INBOX",
     "mailbox" : {
-            "domain" : "gateway.dc4",
+            "domain" : "iankent.no-ip.biz",
             "user" : "iankent"
     },
     "message" : {
             "body" : "test",
             "headers" : {
-                    "Received" : "from [192.168.100.64] by  (SomeMail)\nid il1k2GGTG5Zg0L7RNdn@gateway.dc4;",
+                    "Received" : "from [192.168.100.64] by  (SomeMail)\nid il1k2GGTG5Zg0L7RNdn@iankent.no-ip.biz;",
                     "Subject" : "Inbox test",
                     "MIME-Version" : "1.0",
                     "User-Agent" : "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130509 Thunderbird/17.0.6",
                     "Date" : "Sat, 08 Jun 2013 12:31:10 +0100",
-                    "Message-ID" : "<51D125FE.5080000@gateway.dc4>",
+                    "Message-ID" : "<51D125FE.5080000@iankent.no-ip.biz>",
                     "Content-Type" : "text/plain; charset=ISO-8859-1; format=flowed",
-                    "To" : "iankent@gateway.dc4",
+                    "To" : "iankent@iankent.no-ip.biz",
                     "Content-Transfer-Encoding" : "7bit",
-                    "From" : "Gateway Test <iankent@gateway.dc4>"
+                    "From" : "Gateway Test <iankent@iankent.no-ip.biz>"
             },
             "size" : NumberLong(387)
     }
@@ -141,22 +141,22 @@ store.insert({
     "uid" : 1,
     "path" : "INBOX/Subfolder",
     "mailbox" : {
-            "domain" : "gateway.dc4",
+            "domain" : "iankent.no-ip.biz",
             "user" : "iankent"
     },
     "message" : {
             "body" : "test",
             "headers" : {
-                    "Received" : "from [192.168.100.64] by  (SomeMail)\nid il1k2GGTG5Zg0L7RNdn@gateway.dc4;",
+                    "Received" : "from [192.168.100.64] by  (SomeMail)\nid il1k2GGTG5Zg0L7RNdn@iankent.no-ip.biz;",
                     "Subject" : "Subfolder test",
                     "MIME-Version" : "1.0",
                     "User-Agent" : "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/20130509 Thunderbird/17.0.6",
                     "Date" : "Sat, 08 Jun 2013 12:31:10 +0100",
-                    "Message-ID" : "<51B316AC.5080000@gateway.dc4>",
+                    "Message-ID" : "<51B316AC.5080000@iankent.no-ip.biz>",
                     "Content-Type" : "text/plain; charset=ISO-8859-1; format=flowed",
-                    "To" : "iankent@gateway.dc4",
+                    "To" : "iankent@iankent.no-ip.biz",
                     "Content-Transfer-Encoding" : "7bit",
-                    "From" : "Gateway Test <iankent@gateway.dc4>"
+                    "From" : "Gateway Test <iankent@iankent.no-ip.biz>"
             },
             "size" : NumberLong(387)
     }

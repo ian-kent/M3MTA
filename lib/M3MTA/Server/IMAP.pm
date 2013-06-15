@@ -136,36 +136,4 @@ sub uid_store {
 
 #------------------------------------------------------------------------------
 
-# FIXME duplicate of code in m3mta-mda
-sub parse {
-    my ($data) = @_;
-
-    my $size = 0;
-
-    my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
-
-    # Collapse multiline headers
-    $headers =~ s/\r\n([\s\t])/$1/gm;
-
-    my @hdrs = split /\r\n/m, $headers;
-    my %h = ();
-    for my $hdr (@hdrs) {
-        my ($key, $value) = split /:\s/, $hdr, 2;
-        if($h{$key}) {
-            $h{$key} = [$h{$key}] if ref $h{$key} !~ /ARRAY/;
-            push $h{$key}, $value;
-        } else {
-            $h{$key} = $value;
-        }
-    }
-
-    return {
-        headers => \%h,
-        body => $body,
-        size => length($data) + (scalar @hdrs) + 2, # weird hack, length seems to count \r\n as 1?
-    };
-}
-
-#------------------------------------------------------------------------------
-
 __PACKAGE__->meta->make_immutable;
