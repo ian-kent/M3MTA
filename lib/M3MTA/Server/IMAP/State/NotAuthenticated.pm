@@ -34,9 +34,10 @@ sub register {
             delete $self->{handles}->{$handle};
 
             # FIXME Still something wrong, couple of errors from Mojo::Reactor::Poll
-            my $old_handle = $self->{handles}->{$session->stream->handle};
-            $session->stream->reactor->remove($old_handle);
-            $old_handle->close;
+            #my $old_handle = $self->{handles}->{$session->stream->handle};
+            #delete $session->ioloop->{io}->{$old_handle};
+            #$session->stream->reactor->remove($old_handle);
+            #$old_handle->close;
         }
         $session->log("TLS enabled: %s", $tls_enabled);
 

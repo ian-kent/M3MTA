@@ -93,4 +93,38 @@ sub uid_store {
 
 #------------------------------------------------------------------------------
 
+sub parse {
+    my ($self, $data) = @_;
+
+    my $size = 0;
+
+    # Extract headers and body
+    my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
+
+    # Collapse multiline headers
+    $headers =~ s/\r\n([\s\t])/$1/gm;
+
+    my @hdrs = split /\r\n/m, $headers;
+    my %h = ();
+    for my $hdr (@hdrs) {
+        #print "Processing header $hdr\n";
+        my ($key, $value) = split /:\s/, $hdr, 2;
+        #print "  - got key[$key] value[$value]\n";
+        if($h{$key}) {
+            $h{$key} = [$h{$key}] if ref $h{$key} !~ /ARRAY/;
+            push $h{$key}, $value;
+        } else {
+            $h{$key} = $value;
+        }
+    }
+
+    return {
+        headers => \%h,
+        body => $body,
+        size => length($data) + (scalar @hdrs) + 2, # weird hack, length seems to count \r\n as 1?
+    };
+}
+
+#------------------------------------------------------------------------------
+
 __PACKAGE__->meta->make_immutable;

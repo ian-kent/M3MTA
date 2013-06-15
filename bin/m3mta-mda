@@ -29,7 +29,7 @@ $mda_daemon->start(
     begin => sub {        
         print "Starting MDA daemon\n";
         $config ||= 'config.json';
-        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
+        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{mda};
         M3MTA::MDA->new(config => $cfg)->block;
     }
 );

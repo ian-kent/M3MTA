@@ -22,7 +22,18 @@
     "mda": {
         "hostname": "gateway.dc4",
 
-        "backend": "M3MTA::Server::Backend::MongoDB::MDA"
+        "backend": "M3MTA::Server::Backend::MongoDB::MDA",
+
+        "database": {
+            "hostname": "127.0.0.1",
+            "username": null,
+            "password": null,
+            "database": "m3mta",
+            "queue": { "collection": "queue" },
+            "mailboxes": { "collection": "mailboxes" },
+            "domains": { "collection": "domains" },
+            "store": { "collection": "store" }
+        }
     },
     "imap": {
         "hostname": "gateway.dc4",

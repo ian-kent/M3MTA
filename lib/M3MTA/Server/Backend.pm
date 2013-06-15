@@ -4,7 +4,7 @@ use Moose;
 
 # Config
 has 'config' => ( is => 'rw', isa => 'HashRef', required => 1 );
-has 'server' => ( is => 'rw', isa => 'M3MTA::Server::Base', required => 1 );
+has 'server' => ( is => 'rw', required => 1 ); # normally isa => 'M3MTA::Server::Base', but not for MDA
 
 #------------------------------------------------------------------------------
 

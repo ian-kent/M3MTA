@@ -48,6 +48,7 @@ sub register {
 
             # FIXME Still something wrong, couple of errors from Mojo::Reactor::Poll
             #my $old_handle = $self->{handles}->{$session->stream->handle};
+            #delete $session->ioloop->{io}->{$old_handle};
             #$session->stream->reactor->remove($old_handle);
             #$old_handle->close;
         }

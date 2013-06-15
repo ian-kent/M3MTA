@@ -5,6 +5,7 @@ package M3MTA::Server::Base;
 use Modern::Perl;
 use Moose;
 use DateTime::Tiny;
+use Mojolicious;
 use Mojo::IOLoop;
 
 #-------------------------------------------------------------------------------
@@ -137,6 +138,8 @@ sub start {
 
     for my $port (@{$self->config->{ports}}) {
         $self->log("Starting %s server on port %s", ref($self), $port);
+
+        $self->log("Using Mojolicious version " . $Mojolicious::VERSION);
 
         my $server;
         $server = Mojo::IOLoop->server({port => $port}, sub {

@@ -5,7 +5,7 @@ use Modern::Perl;
 
 use Mojo::IOLoop;
 use Data::Uniqid qw/ luniqid /;
-use DateTime;
+use DateTime::Tiny;
 use MongoDB::MongoClient;
 use v5.14;
 
@@ -18,26 +18,34 @@ use My::User;
 use My::Email;
 
 has 'config' => ( is => 'rw' );
+has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
 
-has 'client' => ( is => 'rw' );
-has 'db' => ( is => 'rw' );
-has 'queue' => ( is => 'rw' );
-has 'mailboxes' => ( is => 'rw' );
-has 'domains' => ( is => 'rw' );
-has 'store' => ( is => 'rw' );
+# Debug
+has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } );
+
+sub log {
+    my ($self, $message, @args) = @_;
+
+    return 0 unless $self->debug;
+
+    $message = sprintf("[%s] %s $message", ref($self), DateTime::Tiny->now, @args);
+    print STDOUT "$message\n";
+
+    return 1;
+}
 
 sub BUILD {
 	my ($self) = @_;
 
-	print "Getting database stuff\n";
-
-	$self->client(MongoDB::MongoClient->new);
-	$self->db($self->client->get_database('m3mta'));
-
-	$self->queue($self->db->get_collection('queue')); # incoming queue from smtp daemon
-	$self->mailboxes($self->db->get_collection('mailboxes')); # user mailboxes/aliases
-	$self->domains($self->db->get_collection('domains')); # domains this system recognises
-	$self->store($self->db->get_collection('store')); # message store (i.e. GridFS behind real mailboxes)
+	# Create backend
+    my $backend = $self->config->{backend};
+    if(!$backend) {
+        die("No backend found in server configuration");
+    }
+    
+    eval "require $backend" or die ("Unable to load backend $backend: $@");
+    $self->backend($backend->new(server => $self, config => $self->config));
+    $self->log("Created backend $backend");
 }
 
 sub block {
@@ -45,10 +53,12 @@ sub block {
 
 	while (1) {
 		print "In loop\n";
-        # Look for queued emails
-        my $queued = $self->queue->find;
+        
+        my $messages = $self->backend->poll;
 
-        while(my $email = $queued->next) {
+        for my $email (@$messages) {
+            $self->backend->dequeue($email);
+
             print "Processing message '" . $email->{id} . "' from '" . $email->{from} . "'\n";
 
             # Turn the email into an object
@@ -66,56 +76,34 @@ sub block {
                 my ($user, $domain) = split /@/, $to;
                 print " - Recipient '$user'\@'$domain'\n";
 
-                # Check if we have a real mailbox entry
-                my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
-                # ... or a catch-all
-                $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
-                if($mailbox) {
-                    print " - Local mailbox found, attempting GridFS delivery\n";
+                my $result = $self->backend->local_delivery($user, $domain, $obj);
 
-                    my $path = $mailbox->{delivery}->{path} // 'INBOX';
+                next if $result > 0;
 
-                    # Make the message for the store
-                    my $msg = {
-                        uid => $mailbox->{store}->{children}->{$path}->{nextuid},
-                        message => $obj,
-                        mailbox => { domain => $domain, user => $user },
-                        path => $path,
-                        flags => ['\\Unseen', '\\Recent'],
-                    };
-
-                    # Update mailbox next UID
-                    $self->mailboxes->update({mailbox => $user, domain => $domain}, {
-                        '$inc' => {
-                            "store.children.$path.nextuid" => 1,
-                            "store.children.$path.unseen" => 1,
-                            "store.children.$path.recent" => 1 
-                        } 
-                    } );
-
-                    # Save it to the database
-                    my $oid = $self->store->insert($msg);
-                    print " | message stored with ObjectID [$oid], UID [" . $msg->{uid} . "] for User [$user], Domain [$domain]\n";
-
-                    $self->queue->remove($email);
-
-                    next;
+                if($result == -1) {
+                    # was a local delivery, but user didn't exist
+                    # TODO postmaster email?
+                    print " - Local delivery but no mailbox found\n";
                 }
 
-                # Check if we have a domain entry for local delivery (means user doesn't exist)
-                my $domain2 = $self->domains->find_one({ domain => $domain });
-                if($domain2 && $domain2->{delivery} eq 'local') {
-                    print " - Domain entry found for local delivery but no user or catch-all exists\n";
-                    # TODO postmaster etc?
-                    $self->queue->remove($email);
-                    next;
-                }
+                if($result == 0) {
+                    # We wont bother checking for relay settings, SMTP delivery should have done that already
+                    # So, anything which doesn't get caught above, we'll relay here
+                    print " - No domain or mailbox entry found, attempting remote delivery\n";
+                    my $res = $self->send_smtp($obj, $to);
 
-                # We wont bother checking for relay settings, SMTP delivery should have done that already
-                # So, anything which doesn't get caught above, we'll relay here
-                print " - No domain or mailbox entry found, attempting remote delivery\n";
-                $self->send_smtp($obj, $to);
-                $self->queue->remove($email);
+                    if($res <= 0) {
+                        # It failed, so re-queue
+                        
+                        $res = $self->backend->requeue($email);
+
+                        if($res) {
+                            print " - Remote delivery failed, message re-queued\n";
+                        } else {
+                            print " - Remote delivery failed, requeue also failed, message dropped\n";
+                        }
+                    }
+                }
             }
         }
 
@@ -251,10 +239,7 @@ sub send_smtp {
     }
 
     if(!$success) {
-        # It failed, so re-queue
-        # TODO requeue for a later time
-        $self->queue->insert($message);
-        return 0;
+        return -1;
     }
 
     return 1;

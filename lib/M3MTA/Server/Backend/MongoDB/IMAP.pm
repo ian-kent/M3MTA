@@ -51,13 +51,13 @@ override 'append_message' => sub {
     # Make the message for the store
     my $mbox = $session->auth->{user}->{store}->{$mailbox};
 
-    my $obj = parse($content);
+    my $obj = $self->parse($content);
 
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';
 
     my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-    my $mb = $session->imap->mailboxes->find_one($mboxid);
+    my $mb = $self->mailboxes->find_one($mboxid);
     use Data::Dumper;
     $self->log("Loaded mb:\n%s", (Dumper $mb));
 
@@ -108,7 +108,7 @@ override 'create_folder' => sub {
 		mailbox => $session->auth->{user}->{mailbox},
 		domain => $session->auth->{user}->{domain}
 	};	
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
+	my $mbox = $self->mailboxes->find_one($mboxid);
 
 	# Make sure path doesn't exist
 	if($mbox->{store}->{children}->{$path}) {		
@@ -116,7 +116,7 @@ override 'create_folder' => sub {
 	}
 
 	# Create new folder
-	$session->imap->mailboxes->update($mboxid, {
+	$self->mailboxes->update($mboxid, {
 		'$set' => {
 			"store.children.$path" => {
 				"seen" => 0,
@@ -141,13 +141,13 @@ override 'delete_folder' => sub {
 		mailbox => $session->auth->{user}->{mailbox},
 		domain => $session->auth->{user}->{domain}
 	};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
+	my $mbox = $self->mailboxes->find_one($mboxid);
 
 	if(!$mbox->{store}->{children}->{$path}) {
 		return 0;
 	}
 
-	$session->imap->mailboxes->update($mboxid, {
+	$self->mailboxes->update($mboxid, {
 		'$unset' => {
 			"store.children.$path" => 1
 		}
@@ -163,12 +163,12 @@ override 'rename_folder' => sub {
 
 	# make sure path exists
 	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
+	my $mbox = $self->mailboxes->find_one($mboxid);
 	if(!$mbox->{store}->{children}->{$path}) {
 		return 0;
 	}
 
-	$session->imap->mailboxes->update($mboxid, {
+	$self->mailboxes->update($mboxid, {
 		'$set' => {
 			"store.children.$to" => $mbox->{store}->{children}->{$path},
 			"validity.$to" => $mbox->{validity}->{$path}
@@ -221,7 +221,7 @@ override 'subcribe_folder' => sub {
 		domain => $session->auth->{user}->{domain}
 	};
 
-	$session->imap->mailboxes->update($mboxid, {
+	$self->mailboxes->update($mboxid, {
 		'$set' => {
 			"subscribe.$path" => 1
 		}
@@ -238,7 +238,7 @@ override 'unsubcribe_folder' => sub {
 		domain => $session->auth->{user}->{domain}
 	};
 
-	$session->imap->mailboxes->update($mboxid, {
+	$self->mailboxes->update($mboxid, {
 		'$set' => {
 			"subscribe.$path" => 0
 		}
@@ -254,7 +254,7 @@ override 'fetch_folders' => sub {
 		mailbox => $session->auth->{user}->{mailbox},
 		domain => $session->auth->{user}->{domain}
 	};
-	my $mbox = $session->imap->mailboxes->find_one($mboxid);
+	my $mbox = $self->mailboxes->find_one($mboxid);
 	my $store_node = $mbox->{store};
 
 	my @folders;
@@ -293,8 +293,8 @@ override 'uid_store' => sub {
         },
     };
     print Dumper $query;
-    my $msg = $session->imap->store->find_one($query);
-    my $mbox = $session->imap->mailboxes->find_one($query2);
+    my $msg = $self->store->find_one($query);
+    my $mbox = $self->mailboxes->find_one($query2);
 
     if(!$msg) {
     	
@@ -335,11 +335,11 @@ override 'uid_store' => sub {
 
     if($dirty) {
     	$session->log("Updating message in store");
-    	$session->imap->store->update($query, $msg);
+    	$self->store->update($query, $msg);
 	}
 	if($dirty2) {
 		$session->log("Updating mailbox");
-		$session->imap->mailboxes->update($query2, $mbox);
+		$self->mailboxes->update($query2, $mbox);
 	}
 
 	return 1;
