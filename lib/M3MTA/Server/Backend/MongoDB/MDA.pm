@@ -3,7 +3,10 @@ package M3MTA::Server::Backend::MongoDB::MDA;
 use Moose;
 extends 'M3MTA::Server::Backend::MDA', 'M3MTA::Server::Backend::MongoDB';
 
+use Data::Dumper;
 use DateTime;
+use DateTime::Duration;
+use M3MTA::Util;
 
 # Collections
 has 'queue' => ( is => 'rw' );
@@ -46,7 +49,10 @@ override 'poll' => sub {
     })->all;
 
     $self->queue->update({
-    	"status" => "Pending",
+    	'$or' => [
+            { "status" => "Pending" },
+            { "status" => undef },
+        ]
     },{
     	'$set' => { "status" => "Delivering" },
     }, {
@@ -60,10 +66,9 @@ override 'poll' => sub {
 #------------------------------------------------------------------------------
 
 override 'requeue' => sub {
-	my ($self, $email) = @_;
+	my ($self, $email, $error) = @_;
 
 	$email->{requeued} = 0 if !$email->{requeued};
-	$email->{requeued}++;
 
     # Why these values are chosen in default config
     # 1: +900    (15m after queued)
@@ -88,29 +93,38 @@ override 'requeue' => sub {
     # config item, this causes the item to not be requeued and for a 
     # permanent failure response to be sent
 
-    # TODO move to db?
-    my $rq = $self->config->{retry}->{durations}->[$email->{requeued}];
+    # TODO move to db?    
+    my $rq = $self->config->{retry}->{durations}->[$email->{requeued}];    
 
     if($rq && $rq->{after}) {
         # Requeue for delivery
         my $rq_seconds = $rq->{after};
+
+        # TODO timezones
         my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds));
+
         $email->{delivery_time} = $rq_date;
+        $email->{requeued} = int($email->{requeued}) + 1;
+        $email->{attempts} = [] if !$email->{attempts};
+        push $email->{attempts}, {
+            date => DateTime->now,
+            reason => $error,
+        };
         $email->{status} = 'Pending';
-        $self->queue->insert($email);
+
+        $self->queue->insert($email, { upsert => 1 });
+
+        print STDOUT Data::Dumper::Dumper $email;
 
         if($rq->{notify}) {
             # send a temporary failure message (message requeued)
+            return 2;
         }
 
         return 1;
     }
 
-    if($rq && $rq->{notify}) {
-        # send a permanent failure message (message dropped)
-    }
-
-	return -1;
+	return 0;
 };
 
 #------------------------------------------------------------------------------
@@ -118,7 +132,7 @@ override 'requeue' => sub {
 override 'dequeue' => sub {
 	my ($self, $email) = @_;
 
-	$self->queue->remove($email);
+	$self->queue->remove({ "_id" => $email->{_id} });
 
 	return 1;
 };
@@ -174,6 +188,45 @@ override 'local_delivery' => sub {
 
     # Not for local delivery
     return 0;
+};
+
+override 'notify' => sub {
+    my ($self, $to, $subject, $content) = @_;
+
+    my $msg_id = "temp\@localhost";
+    my $msg_date = DateTime::Tiny->now;
+    my $msg_from = "postmaster\@m3mta.mda";
+
+    my $msg_data = <<EOF
+Message-ID: $msg_id\r
+Date: $msg_date\r
+User-Agent: M3MTA/MDA\r
+MIME-Version: 1.0\r
+To: $to\r
+From: $msg_from\r
+Subject: $subject\r
+Content-Type: text/plain; charset=UTF-8;\r
+Content-Transfer-Encoding: 7bit\r
+\r
+$content\r
+\r
+M3MTA-MDA Postmaster
+EOF
+;
+    $msg_data =~ s/\r?\n\./\r\n\.\./gm;
+
+    my $reply = {
+        date => $msg_date,
+        status => 'Pending',
+        data => $msg_data,
+        helo => "localhost",
+        id => "$msg_id",
+        from => $msg_from,
+        to => [ $to ],
+    };
+    $self->queue->insert($reply);
+
+    return 1;
 };
 
 #------------------------------------------------------------------------------

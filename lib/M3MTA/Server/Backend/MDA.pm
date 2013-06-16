@@ -37,4 +37,12 @@ sub dequeue {
 
 #------------------------------------------------------------------------------    
 
+sub notify {
+	my ($self, $to, $subject, $content) = @_;
+
+	die("notify not implemented by backend");
+}
+
+#------------------------------------------------------------------------------    
+
 __PACKAGE__->meta->make_immutable;

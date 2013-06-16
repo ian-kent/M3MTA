@@ -33,7 +33,7 @@ sub parse {
 }
 
 sub send_smtp {
-    my ($message, $to) = @_;
+    my ($message, $to, $error) = @_;
 
     use Data::Dumper;
 
@@ -47,6 +47,11 @@ sub send_smtp {
     my $mx = $dns->query( $domain, 'MX' );
 
     my %hosts;
+
+    if(!$mx) {
+        $$error = "No MX record found for domain $domain";
+        return -2; # permanent failure
+    }
 
     for my $result ($mx->answer) {
         print Dumper $result;
@@ -127,7 +132,8 @@ sub send_smtp {
     }
 
     if(!$success) {
-        return -1;
+        $$error = "No MX hosts responded for domain $domain: " . (join ', ', @ordered);
+        return -1; # retryable
     }
 
     return 1;

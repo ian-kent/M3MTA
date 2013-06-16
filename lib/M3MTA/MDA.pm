@@ -72,7 +72,7 @@ sub block {
             # Add received by header
             my $recd_by = "from " . $email->{helo} . " by " . $self->config->{hostname} . " (M3MTA) id " . $email->{id} . ";";
             if($obj->{headers}->{Received}) {
-                $obj->{headers}->{Received} = [$obj->{headers}->{Received}] if ref $obj->{headers}->{Received} !~ /ARRAY/;
+                $obj->{headers}->{Received} = [$obj->{headers}->{Received}] if ref($obj->{headers}->{Received}) !~ /ARRAY/;
                 push $obj->{headers}->{Received}, $recd_by;
             } else {
                 $obj->{headers}->{Received} = $recd_by;
@@ -90,23 +90,44 @@ sub block {
                     # was a local delivery, but user didn't exist
                     # TODO postmaster email?
                     print " - Local delivery but no mailbox found\n";
+                    $self->backend->notify(
+                        $email->{from},
+                        "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                        "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
+                    );
                 }
 
                 if($result == 0) {
                     # We wont bother checking for relay settings, SMTP delivery should have done that already
                     # So, anything which doesn't get caught above, we'll relay here
                     print " - No domain or mailbox entry found, attempting remote delivery\n";
-                    my $res = M3MTA::Util::send_smtp($obj, $to);
+                    my $error = '';
+                    my $res = M3MTA::Util::send_smtp($obj, $to, \$error);
 
-                    if($res <= 0) {
-                        # It failed, so re-queue                        
-                        $res = $self->backend->requeue($email);
+                    if($res == -1) {
+                        # retryable error, so re-queue                  
+                        $res = $self->backend->requeue($email, $error);
 
-                        if($res) {
-                            print " - Remote delivery failed, message re-queued\n";
+                        if($res == 1) {
+                            print " - Remote delivery failed with retryable error, message re-queued, no notification sent\n";
+                        } elsif ($res == 2) {
+                            print " - Remote delivery failed with retryable error, message re-queued, notification sent\n";
+                            $self->backend->notify(
+                                $email->{from},
+                                "Message delivery delayed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                                "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
+                            );
                         } else {
-                            print " - Remote delivery failed, requeue also failed, message dropped\n";
+                            print " - Remote delivery failed with retryable error, requeue also failed, message dropped\n";
                         }
+                    } elsif ($res == -2) {
+                        # permanent failure
+                        print " - Remote delivery failed with permanent error, message dropped\n";
+                        $self->backend->notify(
+                            $email->{from},
+                            "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                            "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
+                        );
                     }
                 }
             }

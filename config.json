@@ -72,10 +72,6 @@
                 {
                     "after": 259200,
                     "notify": 0
-                },
-                {
-                    "after": null,
-                    "notify": 1
                 }
             ]
         }
