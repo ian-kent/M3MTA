@@ -36,6 +36,20 @@ sub BUILD {
 
 #------------------------------------------------------------------------------
 
+override 'get_postmaster' => sub {
+    my ($self, $domain) = @_;
+
+    my $d = $self->domains->find_one({domain => $domain});
+    if(!$d || !$d->{postmaster}) {
+        # use a default address
+        return "postmaster\@$domain";
+    }
+
+    return $d->{postmaster};
+};
+
+#------------------------------------------------------------------------------
+
 override 'poll' => sub {
     my ($self, $count) = @_;
 
@@ -191,40 +205,9 @@ override 'local_delivery' => sub {
 };
 
 override 'notify' => sub {
-    my ($self, $to, $subject, $content) = @_;
+    my ($self, $message) = @_;
 
-    my $msg_id = "temp\@localhost";
-    my $msg_date = DateTime::Tiny->now;
-    my $msg_from = "postmaster\@m3mta.mda";
-
-    my $msg_data = <<EOF
-Message-ID: $msg_id\r
-Date: $msg_date\r
-User-Agent: M3MTA/MDA\r
-MIME-Version: 1.0\r
-To: $to\r
-From: $msg_from\r
-Subject: $subject\r
-Content-Type: text/plain; charset=UTF-8;\r
-Content-Transfer-Encoding: 7bit\r
-\r
-$content\r
-\r
-M3MTA-MDA Postmaster
-EOF
-;
-    $msg_data =~ s/\r?\n\./\r\n\.\./gm;
-
-    my $reply = {
-        date => $msg_date,
-        status => 'Pending',
-        data => $msg_data,
-        helo => "localhost",
-        id => "$msg_id",
-        from => $msg_from,
-        to => [ $to ],
-    };
-    $self->queue->insert($reply);
+    $self->queue->insert($message);
 
     return 1;
 };

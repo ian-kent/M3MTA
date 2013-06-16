@@ -15,6 +15,7 @@ use Data::Dumper;
 use Net::DNS;
 use Config::Any;
 use IO::Socket::INET;
+use Email::Date::Format qw/email_date/;
 
 use My::User;
 use My::Email;
@@ -56,6 +57,47 @@ sub BUILD {
 
 #------------------------------------------------------------------------------
 
+sub notification {
+    my ($self, $to, $subject, $content) = @_;
+
+    my $msg_id = luniqid . "@" . $self->config->{hostname};
+    my $msg_date = DateTime->now;
+    my $mail_date = email_date;
+    my $msg_from = "postmaster\@m3mta.mda";
+
+    my $msg_data = <<EOF
+Message-ID: $msg_id\r
+Date: $mail_date\r
+User-Agent: M3MTA/MDA\r
+MIME-Version: 1.0\r
+To: $to\r
+From: $msg_from\r
+Subject: $subject\r
+Content-Type: text/plain; charset=UTF-8;\r
+Content-Transfer-Encoding: 7bit\r
+\r
+$content\r
+\r
+M3MTA-MDA Postmaster
+EOF
+;
+    $msg_data =~ s/\r?\n\./\r\n\.\./gm;
+
+    my $msg = {
+        date => $msg_date,
+        status => 'Pending',
+        data => $msg_data,
+        helo => "localhost",
+        id => "$msg_id",
+        from => $msg_from,
+        to => [ $to ],
+    };
+
+    return $msg;
+}
+
+#------------------------------------------------------------------------------
+
 sub block {
 	my ($self) = @_;
 
@@ -82,6 +124,14 @@ sub block {
                 my ($user, $domain) = split /@/, $to;
                 print " - Recipient '$user'\@'$domain'\n";
 
+                if(lc $user eq 'postmaster') {
+                    # we've got a postmaster address, resolve it
+                    my $postmaster = $self->backend->get_postmaster($domain);
+                    print " - Got postmaster address: $postmaster\n";
+                    ($user, $domain) = split /@/, $postmaster;
+                    print " - New recipient is '$user'\@'$domain'\n";
+                }
+
                 my $result = $self->backend->local_delivery($user, $domain, $obj);
 
                 next if $result > 0;
@@ -90,11 +140,11 @@ sub block {
                     # was a local delivery, but user didn't exist
                     # TODO postmaster email?
                     print " - Local delivery but no mailbox found\n";
-                    $self->backend->notify(
+                    $self->backend->notify($self->notification(
                         $email->{from},
                         "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
                         "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
-                    );
+                    ));
                 }
 
                 if($result == 0) {
@@ -112,22 +162,22 @@ sub block {
                             print " - Remote delivery failed with retryable error, message re-queued, no notification sent\n";
                         } elsif ($res == 2) {
                             print " - Remote delivery failed with retryable error, message re-queued, notification sent\n";
-                            $self->backend->notify(
+                            $self->backend->notify($self->notification(
                                 $email->{from},
                                 "Message delivery delayed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
                                 "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
-                            );
+                            ));
                         } else {
                             print " - Remote delivery failed with retryable error, requeue also failed, message dropped\n";
                         }
                     } elsif ($res == -2) {
                         # permanent failure
                         print " - Remote delivery failed with permanent error, message dropped\n";
-                        $self->backend->notify(
+                        $self->backend->notify($self->notification(
                             $email->{from},
                             "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
                             "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
-                        );
+                        ));
                     }
                 }
             }

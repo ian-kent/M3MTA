@@ -39,8 +39,7 @@ queue.insert({
 
 domains.insert({
     "domain": "iankent.co.uk",
-    "delivery": "relay",
-    "postmaster": "#RELAY"
+    "delivery": "relay"
 });
 domains.insert({
     "domain": "iankent.no-ip.biz",

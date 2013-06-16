@@ -38,9 +38,17 @@ sub dequeue {
 #------------------------------------------------------------------------------    
 
 sub notify {
-	my ($self, $to, $subject, $content) = @_;
+	my ($self, $message) = @_;
 
 	die("notify not implemented by backend");
+}
+
+#------------------------------------------------------------------------------    
+
+sub get_postmaster {
+	my ($self, $domain) = @_;
+
+	die("get_postmaster not implemented by backend");
 }
 
 #------------------------------------------------------------------------------    
