@@ -1,6 +1,9 @@
 package MojoX::IOLoop::Server::StartTLS;
 
-use IO::Socket::SSL qw/debug3 debug4/;
+use IO::Socket::SSL;
+
+# We'll use the version of mojolicious it was written against
+our $VERSION = '4.15';
 
 use File::Basename 'dirname';
 use File::Spec::Functions 'catfile';
