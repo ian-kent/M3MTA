@@ -7,7 +7,11 @@ M3MTA::Server::IMAP::State::NotAuthenticated
 use Modern::Perl;
 use Moose;
 
+use MojoX::IOLoop::Server::StartTLS;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
+
+has 'handles' => ( is => 'rw', default => sub { {} } );
 
 #------------------------------------------------------------------------------
 
@@ -23,7 +27,7 @@ sub register {
     	my ($session, $settings) = @_;
 
     	# Find out if its a TLS stream
-    	my $handle = $self->{handles}->{$session->stream->handle};
+    	my $handle = $self->handles->{$session->stream->handle};
         my $tls_enabled = $handle ? 1 : 0;
         if($tls_enabled) {
             # It is, so dont send a welcome message and get rid of the old stream
@@ -31,7 +35,7 @@ sub register {
             $session->{tls_enabled} = 1;
 
             # Now we have a working TLS stream we don't need the handle
-            delete $self->{handles}->{$handle};
+            delete $self->handles->{$handle};
 
             # FIXME Still something wrong, couple of errors from Mojo::Reactor::Poll
             #my $old_handle = $self->{handles}->{$session->stream->handle};
@@ -99,21 +103,16 @@ sub starttls {
 
 	$session->respond($id, 'OK Begin TLS negotiation now');
 
-	$session->stream->on(drain => sub {
-		my $handle = $session->stream->handle;
-		$handle = $session->server->start_tls($handle, {
-			SSL_cert_file => $Mojo::IOLoop::Server::CERT,
-			SSL_cipher_list => '!aNULL:!eNULL:!EXPORT:!DSS:!DES:!SSLv2:!LOW:RC4-SHA:RC4-MD5:ALL',
-			SSL_honor_cipher_order => 1,
-			SSL_key_file => $Mojo::IOLoop::Server::KEY,
-			SSL_startHandshake => 0,
-			SSL_verify_mode => 0x00,
-			SSL_server => 1,
-		});
-		$self->{handles}->{$handle} = $handle;
-		$self->{streams}->{$handle} = $session->stream;
-		$session->log("Socket upgraded to SSL: %s", (ref $session->stream->handle));
-	});
+	MojoX::IOLoop::Server::StartTLS::start_tls(
+        $session->server,
+        $session->stream,
+        undef,
+        sub {
+            my ($handle) = @_;
+            $session->log("Socket upgraded to SSL: %s", (ref $handle));
+            $self->handles->{$handle} = $handle;
+        }
+    );
 
 	return 1;
 }
