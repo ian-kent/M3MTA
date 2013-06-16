@@ -100,6 +100,58 @@ mailboxes.insert({
     }
 });
 
+mailboxes.insert({
+    // Should delivery locally
+    "domain": "iankent.no-ip.biz",
+    "mailbox": "spamtest",
+    "username": "spamtest@iankent.no-ip.biz",
+    "password": "test",
+    "relay": 1,
+    "delivery": {
+        "path": "INBOX"
+    },
+    "validity": {
+        "INBOX": 1,
+        "Sent": 1,
+        "Trash": 1,
+        "INBOX/Subfolder": 1
+    },
+    "subscriptions": {
+        "INBOX": 1,
+        "Sent": 1,
+        "Trash": 1,
+        "INBOX/Subfolder": 1
+    },
+    "store": {
+        "children": {
+            "INBOX": {
+                "seen": 0,
+                "unseen": 0,
+                "recent": 0,
+                "nextuid": 1
+            },            
+            "Sent": {
+                "seen": 0,
+                "unseen": 0,
+                "recent": 0,
+                "nextuid": 1
+            },
+            "Trash": {
+                "seen": 0,
+                "unseen": 0,
+                "recent": 0,
+                "nextuid": 1
+            },
+            "INBOX/Subfolder": {
+                "seen": 0,
+                "unseen": 0,
+                "recent": 0,
+                "nextuid": 1
+            }
+        }
+    }
+});
+
 //------------------------------------------------------------------------------
 
 store.insert({

@@ -59,9 +59,7 @@ sub BUILD {
 sub block {
 	my ($self) = @_;
 
-	while (1) {
-		print "In loop\n";
-        
+	while (1) {       
         my $messages = $self->backend->poll;
 
         for my $email (@$messages) {
@@ -101,8 +99,7 @@ sub block {
                     my $res = M3MTA::Util::send_smtp($obj, $to);
 
                     if($res <= 0) {
-                        # It failed, so re-queue
-                        
+                        # It failed, so re-queue                        
                         $res = $self->backend->requeue($email);
 
                         if($res) {

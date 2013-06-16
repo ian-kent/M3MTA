@@ -136,6 +136,11 @@ override 'queue_message' => sub {
         $self->queue->insert($email->to_hash);
     };
 
+    if($email->{data} =~ /Subject: finish_profile/) {
+        $self->log("Finished profiling");
+        DB::finish_profile();
+    }
+
     my @res;
     if($@) {
         @res = ("451", "$id message store failed, please retry later");

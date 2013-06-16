@@ -19,7 +19,7 @@ my $imap_daemon = M3MTA::Daemon->new(
     name => 'M3MTA-IMAP',
     pidfile => $pidfile,
     stdout => $logfile ? "$logfile.out" : undef,
-    stderr => $logfile ? "$logfile.err" : undef,
+    stderr => undef, #$logfile ? "$logfile.err" : undef,
     daemon => $daemon ? 1 : 0,
 );
 
