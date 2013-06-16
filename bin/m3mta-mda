@@ -26,7 +26,7 @@ my $mda_daemon = M3MTA::Daemon->new(
 exit $mda_daemon->stop if $stop;
 
 $mda_daemon->start(
-    begin => sub {        
+    begin => sub {   
         print "Starting MDA daemon\n";
         $config ||= 'config.json';
         my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{mda};

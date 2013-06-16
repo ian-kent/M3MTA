@@ -9,7 +9,6 @@ use Mojo::IOLoop;
 use Data::Uniqid qw/ luniqid /;
 use DateTime::Tiny;
 use MongoDB::MongoClient;
-use v5.14;
 
 use Data::Dumper;
 use Net::DNS;
@@ -20,11 +19,16 @@ use Email::Date::Format qw/email_date/;
 use My::User;
 use My::Email;
 
+#use M3MTA::MDA::SpamAssassin;
+
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
 
 # Debug
 has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } );
+
+# Filters
+has 'spamassassin'  => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
@@ -53,6 +57,9 @@ sub BUILD {
     eval "require $backend" or die ("Unable to load backend $backend: $@");
     $self->backend($backend->new(server => $self, config => $self->config));
     $self->log("Created backend $backend");
+
+    #$self->spamassassin(M3MTA::MDA::SpamAssassin->new);
+    #$self->log("Created SpamAssassin filter");
 }
 
 #------------------------------------------------------------------------------
@@ -63,7 +70,7 @@ sub notification {
     my $msg_id = luniqid . "@" . $self->config->{hostname};
     my $msg_date = DateTime->now;
     my $mail_date = email_date;
-    my $msg_from = "postmaster\@m3mta.mda";
+    my $msg_from = $self->config->{postmaster} // "postmaster\@m3mta.mda";
 
     my $msg_data = <<EOF
 Message-ID: $msg_id\r
@@ -108,6 +115,9 @@ sub block {
             $self->backend->dequeue($email);
 
             print "Processing message '" . $email->{id} . "' from '" . $email->{from} . "'\n";
+
+            # Run filters
+            #$email->{data} = $self->spamassassin->test($email->{data});
 
             # Turn the email into an object
             my $obj = M3MTA::Util::parse($email->{data});

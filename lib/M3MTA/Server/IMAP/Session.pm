@@ -1,7 +1,7 @@
 package M3MTA::Server::IMAP::Session;
 
 use Modern::Perl;
-use Mouse;
+use Moose;
 use Data::Dumper;
 
 #------------------------------------------------------------------------------
@@ -112,4 +112,4 @@ sub receive {
 
 #------------------------------------------------------------------------------
 
-1;
+__PACKAGE__->meta->make_immutable;
