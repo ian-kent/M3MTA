@@ -37,7 +37,7 @@ override 'poll' => sub {
     my ($self, $count) = @_;
 
     # Look for queued emails
-    # TODO limit
+    # TODO limit and delivery_time from requeue
     my @queued = $self->queue->find({
     	'$or' => [
     		{ "status" => "Pending" },
@@ -105,7 +105,7 @@ override 'requeue' => sub {
 
         return 1;
     }
-    
+
     if($rq && $rq->{notify}) {
         # send a permanent failure message (message dropped)
     }
