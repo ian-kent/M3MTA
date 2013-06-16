@@ -26,7 +26,7 @@ sub BUILD {
     # Initialise RFCs
     M3MTA::Server::SMTP::RFC2821->new->register($self); # Basic SMTP
     M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH
-    #M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
+    M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
 }
 
 #------------------------------------------------------------------------------

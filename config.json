@@ -39,48 +39,43 @@
             "durations": [
                 {
                     "after": 900,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 900,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 1800,
-                    "notify": 1,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 7200,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 1
                 },
                 {
                     "after": 32400,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 43200,
-                    "notify": 1,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 86400,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 1
                 },
                 {
                     "after": 172800,
-                    "notify": 0,
-                    "return": 0
+                    "notify": 0
                 },
                 {
                     "after": 259200,
-                    "notify": 1,
-                    "return": 1
+                    "notify": 0
+                },
+                {
+                    "after": null,
+                    "notify": 1
                 }
             ]
         }

@@ -1,13 +1,6 @@
 M3MTA
 =====
 
-MOJOLICIOUS
-
-    M3MTA requires a patched version of Mojolicious to enable
-    TLS support.
-
-    Please install the version from https://github.com/ian-kent/mojo
-
 INSTALL
 
     If you're using M3MTA in daemon mode, you'll need to run
