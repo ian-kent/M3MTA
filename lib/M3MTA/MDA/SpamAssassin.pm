@@ -11,7 +11,7 @@ has 'spamassassin' => ( is => 'rw' );
 sub BUILD {
 	my ($self) = @_;
 
-	$self->spamassassin($M3MTA::bin::mda::spamassassin);
+	$self->spamassassin(Mail::SpamAssassin->new);
 }
 
 sub test {
@@ -19,9 +19,11 @@ sub test {
 
 	my $mail = $self->spamassassin->parse($message);
 	my $status = $self->spamassassin->check($mail);
-	if($status->is_spam) {
+	
+	#if($status->is_spam) {
+		# adds headers even if it isnt spam
 		$message = $status->rewrite_mail;
-	}
+	#}
 
 	$status->finish;
 	$mail->finish;
