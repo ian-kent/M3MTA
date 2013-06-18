@@ -107,7 +107,6 @@ sub receive {
 
     # Otherwise its a bad command
     $self->respond($id, 'BAD', "Command not understood.");
-
 }
 
 #------------------------------------------------------------------------------
