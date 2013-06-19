@@ -1,5 +1,7 @@
 #!/usr/local/bin/perl
 
+use Mail::SpamAssassin;
+
 use Config::Any;
 use M3MTA::Daemon;
 use M3MTA::MDA;

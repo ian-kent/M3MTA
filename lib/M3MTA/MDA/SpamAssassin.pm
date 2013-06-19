@@ -15,20 +15,20 @@ sub BUILD {
 }
 
 sub test {
-	my ($self, $message) = @_;
+	my ($self, $content, $email) = @_;
 
-	my $mail = $self->spamassassin->parse($message);
+	my $mail = $self->spamassassin->parse($content);
 	my $status = $self->spamassassin->check($mail);
-	
 	#if($status->is_spam) {
-		# adds headers even if it isnt spam
-		$message = $status->rewrite_mail;
+		$content = $status->rewrite_mail;
 	#}
 
 	$status->finish;
 	$mail->finish;
 
-	return $message;
+	return {
+		data => $content
+	};
 }
 
 #------------------------------------------------------------------------------

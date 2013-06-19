@@ -16,10 +16,7 @@ use Config::Any;
 use IO::Socket::INET;
 use Email::Date::Format qw/email_date/;
 
-use My::User;
-use My::Email;
-
-#use M3MTA::MDA::SpamAssassin;
+use M3MTA::MDA::SpamAssassin;
 
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
@@ -28,7 +25,8 @@ has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
 has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } );
 
 # Filters
-has 'spamassassin'  => ( is => 'rw' );
+has 'filters' => ( is => 'rw', default => sub { [] } );
+#has 'spamassassin'  => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
@@ -58,8 +56,12 @@ sub BUILD {
     $self->backend($backend->new(server => $self, config => $self->config));
     $self->log("Created backend $backend");
 
-    #$self->spamassassin(M3MTA::MDA::SpamAssassin->new);
-    #$self->log("Created SpamAssassin filter");
+    for my $filter (@{$self->config->{filters}}) {
+        $self->log("Registering filter $filter");
+        eval "require $filter";
+        my $o = $filter->new;
+        push $self->filters, $o;
+    }
 }
 
 #------------------------------------------------------------------------------
@@ -117,7 +119,27 @@ sub block {
             print "Processing message '" . $email->{id} . "' from '" . $email->{from} . "'\n";
 
             # Run filters
-            #$email->{data} = $self->spamassassin->test($email->{data});
+            my $data = $email->{data};
+            $email->{filters} = {};
+            for my $filter (@{$self->filters}) {
+                print " - Calling filter $filter\n";
+
+                # Call the filter
+                my $result = $filter->test($data, $email);
+
+                # Store the result (so later filters can see it)
+                $email->{filters}->{ref($filter)} = $result;
+
+                # Copy back the data
+                $data = $result->{data};
+            }
+            if(!defined $data) {
+                # undef data means the message is dropped
+                print " - Filter caused message to be dropped";
+                next;
+            }
+            # Copy the final result back for delivery
+            $email->{data} = $data;
 
             # Turn the email into an object
             my $obj = M3MTA::Util::parse($email->{data});
