@@ -285,26 +285,92 @@ override 'fetch_folders' => sub {
     return \@folders;
 };
 
+override 'uid_copy' => sub {
+    my ($self, $session, $from, $to, $dest) = @_;
+
+    my $query = {
+        "mailbox.domain" => $session->auth->{user}->{domain},
+        "mailbox.user" => $session->auth->{user}->{mailbox},
+        "path" => $session->selected,
+    };
+
+    if(!defined $to) {
+        $query->{uid} = int($from);
+    } else {
+        $query->{uid}->{'$gte'} = int($from);
+        if ($to && $to ne '*') {
+            $query->{uid}->{'$lte'} = int($to);
+        } else {
+            # TODO * actually means always include the last message
+            # with the higest UID, even if $from is higher than that
+            # so will need to adjust the $gte parameter
+            delete $query->{uid}->{'$lte'};
+        }
+    }  
+    $session->log(Dumper $query);
+    my $msgs = $self->fetch_messages($session, $query);
+    $session->log("Got " . (scalar @$msgs) . " messages");
+
+    my $query2 = {
+        "domain" => $session->auth->{user}->{domain},
+        "mailbox" => $session->auth->{user}->{mailbox},
+    };
+    print Dumper $query2;
+    my $mbox = $self->mailboxes->find_one($query2);
+
+    print Dumper $mbox;
+
+    my $src = $mbox->{store}->{children}->{$session->selected};
+    my $mailbox = $mbox->{store}->{children}->{$dest};
+    print Dumper $src;
+    print Dumper $mailbox;
+
+    for my $msg (@$msgs) {
+        # Destination folder doesn't exist #TODO proper error
+        return 0 if !$mailbox;
+
+        # Update message UID
+        $msg->{uid} = $mailbox->{nextuid};
+
+        # Remove the _id
+        delete $msg->{_id};
+
+        # Increment mailbox values
+        $mailbox->{nextuid} += 1;
+        $mailbox->{seen} += 1;
+
+        # Change the path
+        $msg->{path} = $dest;
+
+        # And add it to the store
+        $self->store->insert($msg);
+    }
+
+    # Update the main mailbox
+    $self->mailboxes->update($query2, $mbox);
+
+    return 1;
+};
+
 override 'uid_store' => sub {
 	my ($self, $session, $from, $to, $params) = @_;
 
 	my $query = {
-        mailbox => {
-            domain => $session->auth->{user}->{domain},
-            user => $session->auth->{user}->{mailbox},
-        },
+        "mailbox.domain" => $session->auth->{user}->{domain},
+        "mailbox.user" => $session->auth->{user}->{mailbox},
         path => $session->selected,
         uid => int($from),
     };
     my $query2 = {
-        mailbox => {
-            domain => $session->auth->{user}->{domain},
-            user => $session->auth->{user}->{mailbox},
-        },
+        "domain" => $session->auth->{user}->{domain},
+        "mailbox" => $session->auth->{user}->{mailbox},
     };
     print Dumper $query;
     my $msg = $self->store->find_one($query);
     my $mbox = $self->mailboxes->find_one($query2);
+
+    print Dumper $msg;
+    print Dumper $mbox;
 
     if(!$msg) {
     	
@@ -314,15 +380,17 @@ override 'uid_store' => sub {
     my $dirty = 0;
     my $dirty2 = 0;
 
+    print Dumper $params;
+
     # TODO perhaps this bit should be on IMAP side, 
     # and leave just db update to backend
     # i.e., have a set/update_flags instead of uid_store
-    if($params->{'+Flags'}) {
+    if($params->{'+FLAGS'}) {
     	my @flags = $msg->{flags} ? @{$msg->{flags}} : ();
         $session->log("Message already has flags: [%s]", (join ', ', @flags));
         my %flag_map = map { $_ => 1 } @flags;
 
-    	for my $flag (keys %{$params->{'+Flags'}}) {
+    	for my $flag (keys %{$params->{'+FLAGS'}}) {
 			if(!$flag_map{$flag}) {
 				$flag_map{$flag} = 1;
 				$dirty = 1;

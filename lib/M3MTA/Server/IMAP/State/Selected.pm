@@ -98,6 +98,7 @@ sub get_param_map {
     			$prevkey = $buffer;
     		}
     		#$session->log("Changing context, prevkey is: $prevkey");
+            $prevkey = uc $prevkey;
     		$ctx->[0]->{$prevkey} = {};
     		$buffer = '';
     		unshift $ctx, $ctx->[0]->{$prevkey};
@@ -127,6 +128,32 @@ sub get_param_map {
 }
 
 #------------------------------------------------------------------------------
+
+sub uid_copy {
+    my ($self, $session, $id, $args) = @_;
+
+    my $argset = $self->parse_uid_store_args($args);
+    my %ranges = %{$argset->{ranges}};
+    my $params = $argset->{params};
+
+    $params =~ s/^\s*\"(.*)\"\s*$/$1/;
+
+    $session->log("Got RANGES [" . (Dumper \%ranges) . "], ARGS: $params");
+
+    my $result;
+    while(my ($from, $to) = each %ranges) {
+        $result = $session->imap->uid_copy($session, $from, $to, $params);
+        #last if !$result;
+    }
+
+    if($result) {
+        $session->respond($id, 'OK', 'COPY successful');
+    } else {
+        $session->respond($id, 'BAD', 'Message not found');
+    }
+
+    return 1;
+}
 
 sub uid_store {
 	my ($self, $session, $id, $args) = @_;
@@ -210,12 +237,19 @@ sub uid_fetch {
     my $messages = [];
     use Data::Dumper;
     while (my ($from, $to) = each %ranges) {
-        $query->{uid}->{'$gte'} = int($from);
-        if ($to && $to ne '*') {
-            $query->{uid}->{'$lte'} = int($to);
+        if(!defined $to) {
+            $query->{uid} = int($from);
         } else {
-            delete $query->{uid}->{'$lte'};
-        }
+            $query->{uid}->{'$gte'} = int($from);
+            if ($to && $to ne '*') {
+                $query->{uid}->{'$lte'} = int($to);
+            } else {
+                # TODO * actually means always include the last message
+                # with the higest UID, even if $from is higher than that
+                # so will need to adjust the $gte parameter
+                delete $query->{uid}->{'$lte'};
+            }
+        }  
         $session->log(Dumper $query);
         my $msgs = $session->imap->fetch_messages($session, $query);
         push $messages, @$msgs;

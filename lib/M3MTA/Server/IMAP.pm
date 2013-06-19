@@ -134,6 +134,12 @@ sub uid_store {
     return $self->backend->uid_store($session, $from, $to, $params);
 }
 
+sub uid_copy {
+    my ($self, $session, $from, $to, $dest) = @_;
+
+    return $self->backend->uid_copy($session, $from, $to, $dest);
+}
+
 #------------------------------------------------------------------------------
 
 __PACKAGE__->meta->make_immutable;

@@ -93,6 +93,14 @@ sub uid_store {
 
 #------------------------------------------------------------------------------
 
+sub uid_copy {
+    my ($self, $session, $from, $to, $dest) = @_;
+
+    die("uid_copy not implemented by backend");
+}
+
+#------------------------------------------------------------------------------
+
 sub parse {
     my ($self, $data) = @_;
 

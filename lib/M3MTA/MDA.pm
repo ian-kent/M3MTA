@@ -16,8 +16,6 @@ use Config::Any;
 use IO::Socket::INET;
 use Email::Date::Format qw/email_date/;
 
-use M3MTA::MDA::SpamAssassin;
-
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
 
@@ -26,7 +24,6 @@ has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } )
 
 # Filters
 has 'filters' => ( is => 'rw', default => sub { [] } );
-#has 'spamassassin'  => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
