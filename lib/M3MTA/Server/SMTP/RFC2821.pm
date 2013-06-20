@@ -21,6 +21,7 @@ sub register {
 	    SERVICE_CLOSING_TRANSMISSION_CHANNEL        => 221,
 
 	    REQUESTED_MAIL_ACTION_OK                    => 250,
+        ARGUMENT_NOT_CHECKED                        => 252,
 
 	    START_MAIL_INPUT                            => 354,
 
@@ -35,8 +36,8 @@ sub register {
 	$smtp->register_hook('command', sub {
 		my ($session, $cmd, $data) = @_;
 
-		# Don't let the command happen unless its HELO, EHLO, QUIT or NOOP
-		if($cmd !~ /^(HELO|EHLO|QUIT|NOOP)$/ && !$session->email->helo) {
+		# Don't let the command happen unless its HELO, EHLO, QUIT, NOOP or RSET
+		if($cmd !~ /^(HELO|EHLO|QUIT|NOOP|RSET)$/ && !$session->email->helo) {
 	        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "expecting HELO or EHLO");
 	        return 0;
 	    }
@@ -80,6 +81,31 @@ sub register {
 		my ($session, $data) = @_;
 		$self->rcpt($session, $data);
 	});
+
+    $smtp->register_command('RSET', sub {
+        my ($session, $data) = @_;
+        $self->rset($session, $data);
+    });
+
+    if(!exists $smtp->config->{commands}->{vrfy} || $smtp->config->{commands}->{vrfy}) {
+        $smtp->register_command('VRFY', sub {
+            my ($session, $data) = @_;
+            $self->vrfy($session, $data);
+        });
+        $smtp->register_helo(sub {
+            return "VRFY";
+        });
+    }
+
+    if(!exists $smtp->config->{commands}->{expn} || $smtp->config->{commands}->{expn}) {
+        $smtp->register_command('EXPN', sub {
+            my ($session, $data) = @_;
+            $self->expn($session, $data);
+        });
+        $smtp->register_helo(sub {
+            return "EXPN";
+        });
+    }
 }
 
 #------------------------------------------------------------------------------
@@ -119,6 +145,38 @@ sub noop {
 	my ($self, $session, $data) = @_;
 
 	$session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
+}
+
+#------------------------------------------------------------------------------
+
+sub rset {
+    my ($self, $session, $data) = @_;
+
+    $session->buffer('');
+    $session->email(new M3MTA::Server::SMTP::Message);
+    $session->state('ACCEPT');
+
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
+}
+
+#------------------------------------------------------------------------------
+
+sub vrfy {
+    my ($self, $session, $data) = @_;
+
+    # TODO implement properly, with config to switch on (default off)
+
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{ARGUMENT_NOT_CHECKED}, "Argument not checked.");
+}
+
+#------------------------------------------------------------------------------
+
+sub expn {
+    my ($self, $session, $data) = @_;
+
+    # TODO implement properly, with config to switch on (default off)
+
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{ARGUMENT_NOT_CHECKED}, "Argument not checked.");
 }
 
 #------------------------------------------------------------------------------
@@ -186,6 +244,12 @@ sub rcpt {
             return;
         }
         
+        if($r == 2) {
+            # local delivery domain but no user
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
+            return;
+        }
+
         if(!$session->email->to) {
             $session->email->to([]);
         }

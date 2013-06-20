@@ -16,7 +16,13 @@
             "password": null,
             "database": "m3mta",
             "queue": { "collection": "queue" },
-            "mailboxes": { "collection": "mailboxes" }
+            "mailboxes": { "collection": "mailboxes" },
+            "domains": { "collection": "domains" }
+        },
+
+        "commands": {
+            "vrfy": 0,
+            "expn": 0
         }
     },
     "mda": {

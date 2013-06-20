@@ -47,10 +47,11 @@ sub respond {
 #------------------------------------------------------------------------------
 
 sub begin {
-    my ($self) = @_;
+    my ($self, $args) = @_;
 
     my $settings = {
         send_welcome => 1,
+        $args ? %$args : (),
     };
     $self->smtp->call_hook('accept', $self, $settings);
 

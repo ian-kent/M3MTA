@@ -10,6 +10,7 @@ use Data::Dumper;
 # Collections
 has 'queue'     => ( is => 'rw' );
 has 'mailboxes' => ( is => 'rw' );
+has 'domains' => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
@@ -26,6 +27,11 @@ sub BUILD {
     	$self->database->get_collection(
     		$self->config->{database}->{mailboxes}->{collection}
     	)
+    );
+    $self->domains(
+        $self->database->get_collection(
+            $self->config->{database}->{domains}->{collection}
+        )
     );
 }
 
@@ -112,9 +118,15 @@ override 'can_accept_mail' => sub {
         return 1;
     }
 
+    # Check if we have the domain but not the user
+    my $rdomain = $self->domains->find_one({ domain => $domain });
+    if( $rdomain && $rdomain->{delivery} ne 'relay') {
+        $self->log("- Domain exists as local delivery but user doesn't exist and domain has no catch-all");
+        return 2; # on this one we let the caller decide what response to give, e.g. so we can give a 
+    }
+
     # Finally check if we have a relay domain
-    my $rdomain = $self->domains->find_one({ domain => $domain, delivery => 'relay' });
-    if( $rdomain ) {
+    if( $rdomain && $rdomain->{delivery} eq 'relay' ) {
         $self->log("- Domain exists as 'relay'");
         return 1;
     }
