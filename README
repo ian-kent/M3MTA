@@ -9,7 +9,8 @@ REQUIREMENTS
     You'll need:
         - Perl (preferably 5.16 or later)
         - Mojolicious (4.14 or later)
-        - mojox-ioloop-server-starttls: https://github.com/ian-kent/mojox-ioloop-server-starttls
+        - mojox-ioloop-server-starttls:
+            https://github.com/ian-kent/mojox-ioloop-server-starttls
         - MongoDB
         - Some other CPAN modules:
             IO::Socket::SSL
