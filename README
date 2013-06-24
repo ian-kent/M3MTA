@@ -3,6 +3,17 @@ M3MTA
 
 An experimental mail transfer agent using Mojo::IOLoop and MongoDB.
 
+REQUIREMENTS
+------------
+
+    You'll need:
+        - Perl (preferably 5.16 or later)
+        - Mojolicious (4.14 or later)
+        - MongoDB
+        - Some other CPAN modules:
+            IO::Socket::SSL
+        - SpamAssassin (if you want to use it, otherwise remove from config)
+
 INSTALLATION
 ------------
 
