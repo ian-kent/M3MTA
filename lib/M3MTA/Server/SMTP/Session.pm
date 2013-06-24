@@ -102,12 +102,21 @@ sub receive {
     $self->log("Got cmd[%s], data[%s]", $cmd, $data);
 
     # Call the command hook, and exit if we get a negative response
-    my $result = $self->smtp->call_hook('command', $self, $cmd, $data);
-    return if !$result;
+    my $result = {
+        bad_command => 0,
+        response => undef,
+    };
+    $self->smtp->call_hook('command', $self, $cmd, $data, $result);
+    if($result->{response}) {
+        $self->respond(@{$result->{response}});
+        return;
+    }
 
     # Check if command is registered by an RFC
-    if($self->smtp->commands->{$cmd}) {
-        return &{$self->smtp->commands->{$cmd}}($self, $data);
+    if(!$result->{bad_command}) {
+        if($self->smtp->commands->{$cmd}) {
+            return &{$self->smtp->commands->{$cmd}}($self, $data);
+        }
     }
 
     # Respond with command not understood

@@ -96,6 +96,7 @@ sub call_hook {
         for my $h (@{$self->hooks->{$hook}}) {
             my $r = &{$h}(@args);
             $result = 0 if !$r;
+            last if !$result;
         }
     }
     return $result;

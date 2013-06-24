@@ -20,8 +20,8 @@ sub register {
 	my ($self, $smtp) = @_;
 
 	# Register this RFC
-	if(!$smtp->has_rfc('RFC2554')) {
-        die "M3MTA::Server::SMTP::RFC2487 requires RFC2554";
+	if(!$smtp->has_rfc('RFC1869')) {
+        die "M3MTA::Server::SMTP::RFC2487 requires RFC1869";
     }
     $smtp->register_rfc('RFC2487', $self);
 
