@@ -2,13 +2,10 @@
 
 NAME=M3MTA-IMAP
 
-SCRIPT=`readlink -f $0`
-SCRIPTPATH=`dirname $SCRIPT`
-
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
-DAEMON=${SCRIPTPATH}/../bin/m3mta-imap
-export PERL5LIB=${SCRIPTPATH}/../lib:${PERL5LIB}
-CONFIG=${SCRIPTPATH}/../config.json
+DAEMON=/usr/bin/m3mta-imap
+export PERL5LIB=/usr/lib/m3mta:${PERL5LIB}
+CONFIG=/etc/m3mta/config.json
 PIDFILE=/var/run/m3mta/imap.pid
 LOGFILE=/var/log/m3mta/imap.log
 

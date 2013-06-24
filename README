@@ -6,9 +6,14 @@ An experimental mail transfer agent using Mojo::IOLoop and MongoDB.
 INSTALLATION
 ------------
 
-    If you're using M3MTA in daemon mode, you'll need to run
-    ./install
-    to create /var/log/m3mta and /var/run/m3mta before use.
+    Run 'make install'.
+
+    M3MTA will be installed to /usr/bin, /etc/m3mta and
+    /usr/lib/m3mta by default.
+
+    If you're using M3MTA in command line daemon mode,
+    you'll need to create /var/log/m3mta and /var/run/m3mta 
+    before use.
 
     In console mode, no log file or PID file are required.
 
@@ -16,32 +21,35 @@ STARTING M3MTA
 --------------
 
     Start IMAP, SMTP and MDA:
-        ./bin/m3mta start
+        m3mta start
 
     Stop IMAP, SMTP and MDA:
-        ./bin/m3mta stop
+        m3mta stop
+
+    To use M3MTA without the m3mta command, you need to
+    add /usr/lib/m3mta to PERL5LIB.
 
     Start server or MDA in daemon mode:
-        ./init.d/m3mta-imap start
-        ./init.d/m3mta-smtp start
-        ./init.d/m3mta-mda start
+        m3mta-imap start --daemon
+        m3mta-smtp start --daemon
+        m3mta-mda start --daemon
 
     Stop server or MDA in daemon mode:
-        ./init.d/m3mta-imap stop
-        ./init.d/m3mta-smtp stop
-        ./init.d/m3mta-mda stop
+        m3mta-imap stop
+        m3mta-smtp stop
+        m3mta-mda stop
 
     Start server or MDA in console mode:
-        ./bin/m3mta-imap start
-        ./bin/m3mta-smtp start
-        ./bin/m3mta-mda start
+        ./bin/m3mta-imap
+        ./bin/m3mta-smtp
+        ./bin/m3mta-mda
 
         Use Ctrl<C> to stop.
 
 CONFIGURATION
 -------------
 
-    Edit ./config.json
+    Edit /etc/m3mta/config.json
 
 
 
