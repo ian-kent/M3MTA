@@ -1,7 +1,10 @@
 M3MTA
 =====
 
-INSTALL
+An experimental mail transfer agent using Mojo::IOLoop and MongoDB.
+
+INSTALLATION
+------------
 
     If you're using M3MTA in daemon mode, you'll need to run
     ./install
@@ -9,7 +12,8 @@ INSTALL
 
     In console mode, no log file or PID file are required.
 
-RUNNING
+STARTING M3MTA
+--------------
 
     Start IMAP, SMTP and MDA:
         ./bin/m3mta start
@@ -35,5 +39,10 @@ RUNNING
         Use Ctrl<C> to stop.
 
 CONFIGURATION
+-------------
 
     Edit ./config.json
+
+
+
+M3MTA (c) Ian Kent, 2013 - http://github.com/ian-kent/
