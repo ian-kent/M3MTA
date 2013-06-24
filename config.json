@@ -1,6 +1,6 @@
 {
     "smtp": {
-        "hostname": "iankent.no-ip.biz",
+        "hostname": "YOUR.DOMAIN",
         "ports": [ 25 ],
 
         "backend": "M3MTA::Server::Backend::MongoDB::SMTP",
@@ -26,8 +26,8 @@
         }
     },
     "mda": {
-        "hostname": "iankent.no-ip.biz",
-        "postmaster": "M3MTA Postmaster <postmaster@iankent.no-ip.biz>",
+        "hostname": "YOUR.DOMAIN",
+        "postmaster": "M3MTA Postmaster <postmaster@YOUR.DOMAIN>",
 
         "backend": "M3MTA::Server::Backend::MongoDB::MDA",
 
@@ -88,7 +88,7 @@
         }
     },
     "imap": {
-        "hostname": "iankent.no-ip.biz",
+        "hostname": "YOUR.DOMAIN",
         "ports": [ 143 ],
 
         "backend": "M3MTA::Server::Backend::MongoDB::IMAP",
