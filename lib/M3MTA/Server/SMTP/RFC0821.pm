@@ -7,6 +7,9 @@ M3MTA::Server::SMTP::RFC0821 - Basic SMTP
 use Modern::Perl;
 use Moose;
 
+use Data::Uniqid qw/ luniqid /;
+use Date::Format;
+
 #------------------------------------------------------------------------------
 
 sub register {
@@ -254,8 +257,28 @@ sub data {
         my $data = $session->buffer;        
         $data =~ s/\r\n\.\r\n$//s;
 
-        # TODO
-        # add return path and received header here (and remove from MDA)
+        # Get or create the message id
+        if(my ($msg_id) = $data =~ /message-id: <(.*)>/mi) {
+        	$session->email->id($msg_id);
+        } else {
+        	# Generate a new one
+        	my $id = luniqid . "@" . $session->smtp->config->{hostname};
+        	$session->email->id($id);
+        	$data = "Message-ID: $id\r\n$data";
+        }
+ 
+        # Add the return path
+        my $newdata .= "Return-Path: <" . $session->email->from . ">\r\n";
+
+        # Add the received header
+        my $now = time2str("%d %b %y %H:%M:%S %Z", time);
+        $newdata .= "Received: from " . $session->email->helo . " by " . $session->smtp->config->{hostname} . " (" . $session->smtp->ident . ")\r\n";
+        # TODO add in the 'for whoever' bit?
+        #$newdata .= "          id " . $session->email->id . " for " . $session->email->to . "; " . $now . "\r\n";
+        $newdata .= "          id " . $session->email->id . " ; " . $now . "\r\n";
+
+        # Prepend to the original data
+        $data = $newdata . $data;
 
         $session->email->data($data);
 

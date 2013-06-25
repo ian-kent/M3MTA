@@ -52,6 +52,8 @@ override 'append_message' => sub {
 
     # Make the message for the store
     my $obj = M3MTA::Util::parse($content);
+    use Data::Dumper;
+    print STDERR Dumper $obj;
 
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';

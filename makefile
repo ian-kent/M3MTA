@@ -2,7 +2,9 @@ all:
 	@- echo "Use 'make install' to install M3MTA"
 
 clean:
-	@- /usr/bin/m3mta stop
+	@- if [ -e "/var/run/m3mta/imap.pid" ]; then /etc/init.d/m3mta-imap stop; fi
+	@- if [ -e "/var/run/m3mta/smtp.pid" ]; then /etc/init.d/m3mta-smtp stop; fi
+	@- if [ -e "/var/run/m3mta/mda.pid" ]; then /etc/init.d/m3mta-mda stop; fi
 	@- rm /usr/bin/m3mta-imap
 	@- rm /usr/bin/m3mta-smtp
 	@- rm /usr/bin/m3mta-mda
@@ -33,8 +35,7 @@ install:
 	@ cp ./init.d/m3mta-imap /etc/init.d/m3mta-imap
 	@ cp ./init.d/m3mta-smtp /etc/init.d/m3mta-smtp
 	@ cp ./init.d/m3mta-mda /etc/init.d/m3mta-mda
-	@ mkdir /etc/m3mta
-	@ cp ./config.json /etc/m3mta/config.json
-	@ mkdir /var/log/m3mta
 	@ mkdir /var/run/m3mta
+	@ if [ ! -e "/etc/m3mta" ]; then mkdir /etc/m3mta; cp ./config.json /etc/m3mta/config.json; fi
+	@ if [ ! -e "/var/log/m3mta" ]; then mkdir /var/log/m3mta; fi
 	@ echo "M3MTA has been installed"

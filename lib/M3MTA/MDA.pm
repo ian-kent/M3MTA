@@ -140,14 +140,6 @@ sub block {
 
             # Turn the email into an object
             my $obj = M3MTA::Util::parse($email->{data});
-            # Add received by header
-            my $recd_by = "from " . $email->{helo} . " by " . $self->config->{hostname} . " (M3MTA) id " . $email->{id} . ";";
-            if($obj->{headers}->{Received}) {
-                $obj->{headers}->{Received} = [$obj->{headers}->{Received}] if ref($obj->{headers}->{Received}) !~ /ARRAY/;
-                push $obj->{headers}->{Received}, $recd_by;
-            } else {
-                $obj->{headers}->{Received} = $recd_by;
-            }
 
             for my $to (@{$email->{to}}) {
                 my ($user, $domain) = split /@/, $to;

@@ -101,6 +101,9 @@ sub receive {
     my ($cmd, $data) = $buffer =~ m/^(\w+)\s?(.*)\r\n$/s;
     $self->log("Got cmd[%s], data[%s]", $cmd, $data);
 
+    # SMTP commands aren't case sensitive, we are!
+    $cmd = uc $cmd;
+
     # Call the command hook, and exit if we get a negative response
     my $result = {
         bad_command => 0,

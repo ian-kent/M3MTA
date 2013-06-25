@@ -8,14 +8,28 @@ sub parse {
     # Extract headers and body
     my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
 
-    # Collapse multiline headers
-    $headers =~ s/\r\n([\s\t])/$1/gm;
-
     my @hdrs = split /\r\n/m, $headers;
     my %h = ();
+    my $lasthdr = undef;
     for my $hdr (@hdrs) {
+
+        #print STDERR "Testing header: [$hdr]\n";
+        if($lasthdr && $hdr =~ /^[\t\s]/) {
+            # We've got a multiline header
+            #print STDERR "- Got lasthdr: $hdr\n";
+            my $hx = $h{$lasthdr};
+            if(ref($hx) eq 'ARRAY') {
+                $hx->[-1] .= "\r\n$hdr";
+            } else {
+                $h{$lasthdr} .= "\r\n$hdr";
+            }
+            next;
+        }
+
         #print "Processing header $hdr\n";
         my ($key, $value) = split /:\s/, $hdr, 2;
+        $lasthdr = $key;
+
         #print "  - got key[$key] value[$value]\n";
         if($h{$key}) {
             $h{$key} = [$h{$key}] if ref($h{$key}) !~ /ARRAY/;

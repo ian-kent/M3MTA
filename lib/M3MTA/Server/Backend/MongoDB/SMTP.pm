@@ -3,7 +3,6 @@ package M3MTA::Server::Backend::MongoDB::SMTP;
 use Moose;
 extends 'M3MTA::Server::Backend::SMTP', 'M3MTA::Server::Backend::MongoDB';
 
-use Data::Uniqid qw/ luniqid /;
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 use Data::Dumper;
 
@@ -141,8 +140,6 @@ override 'can_accept_mail' => sub {
 override 'queue_message' => sub {
     my ($self, $email) = @_;
 
-    my $id = luniqid . "@" . $self->config->{hostname};
-    $email->id($id);
     $email->date(DateTime->now);
     eval {
         $self->queue->insert($email->to_hash);
@@ -154,6 +151,7 @@ override 'queue_message' => sub {
     }
 
     my @res;
+    my $id = $email->id;
     if($@) {
         @res = ("451", "$id message store failed, please retry later");
         $self->log("Queue message failed for '%s': %s\n%s", $id, $@, (Dumper $email));
