@@ -20,20 +20,36 @@ sub register {
 
 	# Add some reply codes
 	$smtp->register_replycode({
+		SYSTEM_MESSAGE								=> 211,
+		HELP_MESSAGE								=> 214,
+
 	    SERVICE_READY                               => 220,
 	    SERVICE_CLOSING_TRANSMISSION_CHANNEL        => 221,
 
 	    REQUESTED_MAIL_ACTION_OK                    => 250,
+	    USER_NOT_LOCAL_WILL_FORWARD					=> 251,
+	    # FIXME argument not checked in later RFC?
 	    ARGUMENT_NOT_CHECKED                        => 252,
 
 	    START_MAIL_INPUT                            => 354,
+
+	    SERVICE_NOT_AVAILABLE						=> 421,
+
+	    MAILBOX_UNAVAILABLE							=> 450,
+	    ERROR_IN_PROCESSING							=> 451,
+	    INSUFFICIENT_SYSTEM_STORAGE					=> 452,
 
 		COMMAND_NOT_UNDERSTOOD                      => 500,
 		SYNTAX_ERROR_IN_PARAMETERS                  => 501,
 		COMMAND_NOT_IMPLEMENTED                     => 502,
 	    BAD_SEQUENCE_OF_COMMANDS                    => 503,	
+	    COMMAND_PARAMETER_NOT_IMPLEMENTED			=> 504,
 
 	    REQUESTED_ACTION_NOT_TAKEN					=> 550,	
+	    USER_NOT_LOCAL_PLEASE_TRY					=> 551,
+	    EXCEEDED_STORAGE_ALLOCATION					=> 552,
+	    MAILBOX_NAME_NOT_ALLOWED					=> 553,
+	    TRANSACTION_FAILED							=> 554,
 	});
 
 	# Add a receive hook to prevent commands before a HELO
