@@ -4,6 +4,8 @@
 
     "backend": "M3MTA::Server::Backend::MongoDB::SMTP",
 
+    "maximum_size": 10240000,
+
     "relay": {
         "auth": 1,
         "anon": 0 

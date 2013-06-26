@@ -12,6 +12,7 @@ use M3MTA::Server::SMTP::Session;
 use M3MTA::Server::SMTP::RFC0821;
 use M3MTA::Server::SMTP::RFC1652;
 use M3MTA::Server::SMTP::RFC1869;
+use M3MTA::Server::SMTP::RFC1870;
 use M3MTA::Server::SMTP::RFC2821;
 use M3MTA::Server::SMTP::RFC2554;
 use M3MTA::Server::SMTP::RFC2487;
@@ -30,6 +31,7 @@ sub BUILD {
     M3MTA::Server::SMTP::RFC0821->new->register($self); # Basic SMTP
     M3MTA::Server::SMTP::RFC1652->new->register($self); # 8BITMIME
     M3MTA::Server::SMTP::RFC1869->new->register($self); # Extension format
+    M3MTA::Server::SMTP::RFC1870->new->register($self); # SIZE
     M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
     M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH
     M3MTA::Server::SMTP::RFC2821->new->register($self); # Extended SMTP    
