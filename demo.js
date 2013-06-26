@@ -1,7 +1,7 @@
 /* Demo initialisation script for mongodb */
 
 // Change these values before running the script against your mongodb instance
-// WARNING: The database specified in 'mongodb' will be DROPPED.
+// WARNING: All data in the collections specified below will be REMOVED.
 
 // Run this against your database using mongo:
 //     mongo <HOST>:<PORT>/<DB> -u <USER> -p <PASS> demo.js
