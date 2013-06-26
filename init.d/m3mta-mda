@@ -5,7 +5,7 @@ NAME=M3MTA-MDA
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 DAEMON=/usr/bin/m3mta-mda
 export PERL5LIB=/usr/lib/m3mta:${PERL5LIB}
-CONFIG=/etc/m3mta/config.json
+CONFIG=/etc/m3mta/mda.json
 PIDFILE=/var/run/m3mta/mda.pid
 LOGFILE=/var/log/m3mta/mda.log
 

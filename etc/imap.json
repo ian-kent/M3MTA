@@ -1,0 +1,16 @@
+{
+    "hostname": "YOUR.DOMAIN",
+    "ports": [ 143 ],
+
+    "backend": "M3MTA::Server::Backend::MongoDB::IMAP",
+
+    "field_separator": "/",
+    "database": {
+        "hostname": "127.0.0.1",
+        "username": null,
+        "password": null,
+        "database": "m3mta",
+        "store": { "collection": "store" },
+        "mailboxes": { "collection": "mailboxes" }
+    }
+}

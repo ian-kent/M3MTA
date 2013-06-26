@@ -5,7 +5,7 @@ NAME=M3MTA-IMAP
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 DAEMON=/usr/bin/m3mta-imap
 export PERL5LIB=/usr/lib/m3mta:${PERL5LIB}
-CONFIG=/etc/m3mta/config.json
+CONFIG=/etc/m3mta/imap.json
 PIDFILE=/var/run/m3mta/imap.pid
 LOGFILE=/var/log/m3mta/imap.log
 

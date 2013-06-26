@@ -28,8 +28,8 @@ exit $imap_daemon->stop if $stop;
 $imap_daemon->start(
     begin => sub {
         print "Starting IMAP daemon\n";
-        $config ||= 'config.json';
-        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{imap};
+        $config ||= 'imap.json';
+        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
         M3MTA::Server::IMAP->new(config => $cfg)->start;
     }
 );

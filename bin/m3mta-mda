@@ -30,8 +30,8 @@ exit $mda_daemon->stop if $stop;
 $mda_daemon->start(
     begin => sub {   
         print "Starting MDA daemon\n";
-        $config ||= 'config.json';
-        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{mda};
+        $config ||= 'mda.json';
+        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
         M3MTA::MDA->new(config => $cfg)->block;
     }
 );

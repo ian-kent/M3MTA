@@ -1,0 +1,26 @@
+{
+    "hostname": "YOUR.DOMAIN",
+    "ports": [ 25 ],
+
+    "backend": "M3MTA::Server::Backend::MongoDB::SMTP",
+
+    "relay": {
+        "auth": 1,
+        "anon": 0 
+    },
+
+    "database": {
+        "hostname": "127.0.0.1",
+        "username": null,
+        "password": null,
+        "database": "m3mta",
+        "queue": { "collection": "queue" },
+        "mailboxes": { "collection": "mailboxes" },
+        "domains": { "collection": "domains" }
+    },
+
+    "commands": {
+        "vrfy": 0,
+        "expn": 0
+    }
+}

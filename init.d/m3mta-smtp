@@ -5,7 +5,7 @@ NAME=M3MTA-SMTP
 PATH=/bin:/usr/bin:/sbin:/usr/sbin
 DAEMON=/usr/bin/m3mta-smtp
 export PERL5LIB=/usr/lib/m3mta:${PERL5LIB}
-CONFIG=/etc/m3mta/config.json
+CONFIG=/etc/m3mta/smtp.json
 PIDFILE=/var/run/m3mta/smtp.pid
 LOGFILE=/var/log/m3mta/smtp.log
 

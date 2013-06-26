@@ -28,8 +28,8 @@ exit $smtp_daemon->stop if $stop;
 $smtp_daemon->start(
     begin => sub {
 		print "Starting SMTP daemon\n";
-		$config ||= 'config.json';
-		my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config}->{smtp};
+		$config ||= 'smtp.json';
+		my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
 		M3MTA::Server::SMTP->new(config => $cfg)->start;
 	}
 );

@@ -1,0 +1,62 @@
+{
+    "hostname": "YOUR.DOMAIN",
+    "postmaster": "M3MTA Postmaster <postmaster@YOUR.DOMAIN>",
+
+    "backend": "M3MTA::Server::Backend::MongoDB::MDA",
+
+    "filters": [
+        "M3MTA::MDA::SpamAssassin"
+    ],
+
+    "database": {
+        "hostname": "127.0.0.1",
+        "username": null,
+        "password": null,
+        "database": "m3mta",
+        "queue": { "collection": "queue" },
+        "mailboxes": { "collection": "mailboxes" },
+        "domains": { "collection": "domains" },
+        "store": { "collection": "store" }
+    },
+
+    "retry": {
+        "durations": [
+            {
+                "after": 900,
+                "notify": 0
+            },
+            {
+                "after": 900,
+                "notify": 0
+            },
+            {
+                "after": 1800,
+                "notify": 0
+            },
+            {
+                "after": 7200,
+                "notify": 1
+            },
+            {
+                "after": 32400,
+                "notify": 0
+            },
+            {
+                "after": 43200,
+                "notify": 0
+            },
+            {
+                "after": 86400,
+                "notify": 1
+            },
+            {
+                "after": 172800,
+                "notify": 0
+            },
+            {
+                "after": 259200,
+                "notify": 0
+            }
+        ]
+    }
+}
