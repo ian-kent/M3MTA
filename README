@@ -62,7 +62,7 @@ STARTING M3MTA
 CONFIGURATION
 -------------
 
-    Edit /etc/m3mta/config.json
+    Edit files in /etc/m3mta/
 
 
 

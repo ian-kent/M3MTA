@@ -108,6 +108,7 @@ sub block {
 	my ($self) = @_;
 
 	while (1) {       
+        # TODO find_and_modify
         my $messages = $self->backend->poll;
 
         for my $email (@$messages) {
