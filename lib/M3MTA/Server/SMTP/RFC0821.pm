@@ -282,6 +282,10 @@ sub data {
         # rfc0821 4.5.2 transparency
         $data =~ s/\n\.\./\n\./s;
 
+        # TODO
+        # check total size of data against global maximum message size
+        # this is an rfc0821 thing, nothing to do with SIZE
+
         # Get or create the message id
         if(my ($msg_id) = $data =~ /message-id: <(.*)>/mi) {
         	$session->email->id($msg_id);

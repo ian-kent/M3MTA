@@ -146,6 +146,10 @@ override 'can_accept_mail' => sub {
 override 'queue_message' => sub {
     my ($self, $email) = @_;
 
+    # TODO recheck size against mailbox if its local delivery
+    # maybe store the delivery info on the $email object?
+    # not an rfc thing at all, just a mailbox policy thing
+
     $email->date(DateTime->now);
     eval {
         $self->queue->insert($email->to_hash);
