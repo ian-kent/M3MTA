@@ -10,6 +10,7 @@ extends 'M3MTA::Server::Base';
 
 use M3MTA::Server::SMTP::Session;
 use M3MTA::Server::SMTP::RFC0821;
+use M3MTA::Server::SMTP::RFC1652;
 use M3MTA::Server::SMTP::RFC1869;
 use M3MTA::Server::SMTP::RFC2821;
 use M3MTA::Server::SMTP::RFC2554;
@@ -27,6 +28,7 @@ sub BUILD {
 
     # Initialise RFCs
     M3MTA::Server::SMTP::RFC0821->new->register($self); # Basic SMTP
+    M3MTA::Server::SMTP::RFC1652->new->register($self); # 8BITMIME
     M3MTA::Server::SMTP::RFC1869->new->register($self); # Extension format
     M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
     M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH

@@ -292,6 +292,7 @@ sub data {
         # Add the received header
         my $now = time2str("%d %b %y %H:%M:%S %Z", time);
         $newdata .= "Received: from " . $session->email->helo . " by " . $session->smtp->config->{hostname} . " (" . $session->smtp->ident . ")\r\n";
+        # TODO some way to add 'with ESMTP' from RFC1869
         # TODO add in the 'for whoever' bit?
         #$newdata .= "          id " . $session->email->id . " for " . $session->email->to . "; " . $now . "\r\n";
         $newdata .= "          id " . $session->email->id . " ; " . $now . "\r\n";
