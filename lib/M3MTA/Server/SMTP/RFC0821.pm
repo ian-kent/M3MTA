@@ -273,6 +273,9 @@ sub data {
         my $data = $session->buffer;        
         $data =~ s/\r\n\.\r\n$//s;
 
+        # rfc0821 4.5.2 transparency
+        $data =~ s/\n\.\./\n\./s;
+
         # Get or create the message id
         if(my ($msg_id) = $data =~ /message-id: <(.*)>/mi) {
         	$session->email->id($msg_id);

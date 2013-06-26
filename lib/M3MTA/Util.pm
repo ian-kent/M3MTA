@@ -131,8 +131,11 @@ sub send_smtp {
                     print $socket $hdr . ": " . $message->{headers}->{$hdr} . "\r\n";
                 }
                 print $socket "\r\n";
-                print $socket $message->{body};
-                print "SENT: " . $message->{body} . "\n";
+                my $msg = $message->{body};
+                # rfc0821 4.5.2 transparency
+                $msg =~ s/\n\./\n\.\./s;
+                print $socket $msg;
+                print "SENT: " . $msg . "\n";
                 print $socket "\r\n.\r\n";
                 $state = 'done';
             } elsif ($state eq 'done') {
