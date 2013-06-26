@@ -56,6 +56,10 @@ mailboxes.insert({
     "username": demouser + "@" + mailhost,
     "password": demopass,
     "relay": 1,
+    "size": {
+        "current": 0,
+        "maximum": 0
+    },
     "delivery": {
         "path": "INBOX"
     },

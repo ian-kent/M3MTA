@@ -398,12 +398,12 @@ override 'uid_store' => sub {
 				$dirty = 1;
 				if($flag_map{'\\Unseen'}) {
 					delete $flag_map{'\\Unseen'};
-					$mbox->{store}->{$session->selected}->{unseen}--;
+					$mbox->{store}->{children}->{$session->selected}->{unseen}--;
 					$dirty2 = 1;
 				}
 				if($flag_map{'\\Recent'}) {
 					delete $flag_map{'\\Recent'};
-					$mbox->{store}->{$session->selected}->{recent}--;
+					$mbox->{store}->{children}->{$session->selected}->{recent}--;
 					$dirty2 = 1;
 				}
 			}

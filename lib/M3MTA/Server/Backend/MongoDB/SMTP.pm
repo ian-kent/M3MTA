@@ -78,11 +78,32 @@ override 'can_user_send' => sub {
 #------------------------------------------------------------------------------
 
 override 'can_accept_mail' => sub {
-    my ($self, $session, $to) = @_;
+    my ($self, $session, $to, $msg_size) = @_;
 
     my ($user, $domain) = split /@/, $to;
     $self->log("Checking if server will accept messages addressed to '$user'\@'$domain'");
     $self->log("- User: %s", Dumper $session->user) if $session->user;
+
+    # Check for local delivery mailboxes (may be an alias, but thats dealt with after queueing)
+    my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
+    if( $mailbox ) {
+        $self->log("- Mailbox exists locally:");
+        $self->log(Dumper $mailbox);
+
+        if($mailbox->{size}->{maximum} && $mailbox->{size}->{maximum} <= $mailbox->{size}->{current} + $msg_size) {
+            $self->log("x Mailbox is over size limit");
+            return 3; # means mailbox over limit
+        }
+
+        return 1;
+    }
+
+    # Check if we have a catch-all mailbox (also may be an alias)
+    my $catch = $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
+    if( $catch ) {
+        $self->log("- Recipient caught by domain catch-all");
+        return 1;
+    }
 
     # Check if the server is acting as an open relay
     if( $self->config->{relay}->{anon} ) {
@@ -99,21 +120,6 @@ override 'can_accept_mail' => sub {
     # Check if this user can open relay
     if( $session->user && $session->user->{user}->{relay} ) {
         $self->log("- User has remote relay rights");
-        return 1;
-    }
-
-    # Check for local delivery mailboxes (may be an alias, but thats dealt with after queueing)
-    my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
-    if( $mailbox ) {
-        $self->log("- Mailbox exists locally:");
-        $self->log(Dumper $mailbox);
-        return 1;
-    }
-
-    # Check if we have a catch-all mailbox (also may be an alias)
-    my $catch = $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
-    if( $catch ) {
-        $self->log("- Recipient caught by domain catch-all");
         return 1;
     }
 

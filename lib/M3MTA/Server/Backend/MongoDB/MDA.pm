@@ -174,13 +174,23 @@ override 'local_delivery' => sub {
             flags => ['\\Unseen', '\\Recent'],
         };
 
+        my $current = $mailbox->{size}->{current};
+        use Data::Dumper;
+        print Dumper $email;
+        my $msgsize = $email->{size} // "<undef>";
+        my $mbox_size = $current + $msgsize;
+        print " - Current size [$current], message size [$msgsize], new size [$mbox_size]\n";
+
         # Update mailbox next UID
         $self->mailboxes->update({mailbox => $user, domain => $domain}, {
             '$inc' => {
                 "store.children.$path.nextuid" => 1,
                 "store.children.$path.unseen" => 1,
                 "store.children.$path.recent" => 1 
-            } 
+            },
+            '$set' => {
+                "size.current" => $mbox_size,
+            }
         } );
 
         # Save it to the database

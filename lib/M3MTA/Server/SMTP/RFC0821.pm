@@ -236,6 +236,12 @@ sub rcpt {
             return;
         }
 
+        if($r == 3) {
+        	# mailbox is over size
+        	$session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Mailbox exceeds maximum size");
+        	return;
+        }
+
         if(!$session->email->to) {
             $session->email->to([]);
         }

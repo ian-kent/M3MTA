@@ -16,6 +16,9 @@ sub register {
     if(!$smtp->has_rfc('RFC1869')) {
         die "M3MTA::Server::SMTP::RFC1870 requires RFC1869";
     }
+    if(!$smtp->has_rfc('RFC0821')) {
+        die "M3MTA::Server::SMTP::RFC1870 requires RFC0821";
+    }
     $smtp->register_rfc('RFC1870', $self);
 
 	# Add a list of commands to EHLO output
@@ -35,6 +38,8 @@ sub register {
 sub helo {
     my ($self, $session) = @_;
 
+    # TODO configurable option to disable max size broadcast
+    # still requires the keyword, but without arguments
     my $size = $session->smtp->config->{maximum_size} // "0";
     return "SIZE " . $size;
 }
@@ -61,10 +66,26 @@ sub mail {
         }
     }
 
+    # TODO need to get base to handle chained rfc implementations
     if(my $rfc = $session->smtp->has_rfc('RFC1652')) {
         return $rfc->mail($session, $data);
     }
     return $session->smtp->has_rfc('RFC0821')->mail($session, $data);
+}
+
+#------------------------------------------------------------------------------
+
+sub rcpt {
+    my ($self, $session, $data) = @_;
+
+    $session->log("Using RCPT from RFC1870 (SIZE)");
+    
+    # TODO find out from backend what current/max mailbox size is
+    # better still... have an object to represent the mailbox
+
+    # return EXCEEDED_STORAGE_ALLOCATION
+
+    return $session->smtp->has_rfc('RFC0821')->rcpt($session, $data);
 }
 
 #------------------------------------------------------------------------------
