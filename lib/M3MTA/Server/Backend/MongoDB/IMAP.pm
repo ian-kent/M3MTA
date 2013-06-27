@@ -20,12 +20,12 @@ sub BUILD {
     # Get collections
     $self->mailboxes(
     	$self->database->get_collection(
-    		$self->config->{database}->{mailboxes}->{collection}
+    		$self->config->{backend}->{database}->{mailboxes}->{collection}
     	)
     );
     $self->store(
     	$self->database->get_collection(
-    		$self->config->{database}->{store}->{collection}
+    		$self->config->{backend}->{database}->{store}->{collection}
     	)
     );
 }
@@ -392,20 +392,33 @@ override 'uid_store' => sub {
         $session->log("Message already has flags: [%s]", (join ', ', @flags));
         my %flag_map = map { $_ => 1 } @flags;
 
+        # Remove the Unseen flag, must have seen the message to get here
+        if($flag_map{'\\Unseen'}) {
+            $session->log("Removing flag \\Unseen");
+            delete $flag_map{'\\Unseen'};
+            $mbox->{store}->{children}->{$session->selected}->{unseen}--;
+            $dirty2 = 1;
+        }
+
+        # Remove the Recent flag - should probably move this to first UID FETCH
+        if($flag_map{'\\Recent'}) {
+            $session->log("Removing flag \\Recent");
+            delete $flag_map{'\\Recent'};
+            $mbox->{store}->{children}->{$session->selected}->{recent}--;
+            $dirty2 = 1;
+        }
+
+        # Add in any flags provided
     	for my $flag (keys %{$params->{'+FLAGS'}}) {
 			if(!$flag_map{$flag}) {
 				$flag_map{$flag} = 1;
 				$dirty = 1;
-				if($flag_map{'\\Unseen'}) {
-					delete $flag_map{'\\Unseen'};
-					$mbox->{store}->{children}->{$session->selected}->{unseen}--;
-					$dirty2 = 1;
-				}
-				if($flag_map{'\\Recent'}) {
-					delete $flag_map{'\\Recent'};
-					$mbox->{store}->{children}->{$session->selected}->{recent}--;
-					$dirty2 = 1;
-				}
+				
+                if($flag_map{'\\Seen'}) {
+                    $session->log("Adding flag \\Seen");
+                    $mbox->{store}->{children}->{$session->selected}->{seen}++;
+                    $dirty2 = 1;
+                }
 			}
     	}
 

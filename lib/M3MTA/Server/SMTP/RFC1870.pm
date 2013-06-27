@@ -79,12 +79,24 @@ sub rcpt {
     my ($self, $session, $data) = @_;
 
     $session->log("Using RCPT from RFC1870 (SIZE)");
+
+    if(!$session->email->from) {
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
+        return;
+    }
+    if($session->email->data) {
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
+        return;
+    }
+    if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
+        print "Checking size for $recipient\n";
+
+        # TODO find out from backend what current/max mailbox size is
+        # better still... have an object to represent the mailbox
+
+        # return EXCEEDED_STORAGE_ALLOCATION
+    }
     
-    # TODO find out from backend what current/max mailbox size is
-    # better still... have an object to represent the mailbox
-
-    # return EXCEEDED_STORAGE_ALLOCATION
-
     return $session->smtp->has_rfc('RFC0821')->rcpt($session, $data);
 }
 

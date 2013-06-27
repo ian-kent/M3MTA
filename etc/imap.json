@@ -1,17 +1,26 @@
 {
-    "hostname": "YOUR.DOMAIN",
-    "ports": [ 143 ],
-
-    "backend": "M3MTA::Server::Backend::MongoDB::IMAP",
-
-    "field_separator": "/",
+    "type": "database",
     "database": {
         "hostname": "127.0.0.1",
         "port": 27017,
         "username": null,
         "password": null,
         "database": "m3mta",
-        "store": { "collection": "store" },
-        "mailboxes": { "collection": "mailboxes" }
+        "collection": "config",
+        "query": {
+            "daemon": "imap"
+        }
+    },
+    "backend": {
+        "handler": "M3MTA::Server::Backend::MongoDB::IMAP",
+        "database": {
+            "hostname": "127.0.0.1",
+            "port": 27017,
+            "username": null,
+            "password": null,
+            "database": "m3mta",
+            "store": { "collection": "store" },
+            "mailboxes": { "collection": "mailboxes" }
+        }
     }
 }

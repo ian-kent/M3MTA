@@ -1,8 +1,6 @@
 #!/usr/local/bin/perl
 
-use Mail::SpamAssassin;
-
-use Config::Any;
+use M3MTA::Config;
 use M3MTA::Daemon;
 use M3MTA::MDA;
 use Getopt::Long;
@@ -31,7 +29,7 @@ $mda_daemon->start(
     begin => sub {   
         print "Starting MDA daemon\n";
         $config ||= 'mda.json';
-        my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
+        my $cfg = M3MTA::Config->new(filename => $config)->load;
         M3MTA::MDA->new(config => $cfg)->block;
     }
 );

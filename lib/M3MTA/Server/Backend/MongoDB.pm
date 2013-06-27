@@ -14,16 +14,15 @@ has 'database'  => ( is => 'rw' );
 sub BUILD {
 	my ($self) = @_;
 
-    # TODO authentication
     my $host = "mongodb://" 
-    		 . ($self->config->{database}->{hostname} // "localhost")
+    		 . ($self->config->{backend}->{database}->{hostname} // "localhost")
     		 . ":" 
-    		 . ($self->config->{database}->{port} // 27017);    		 
+    		 . ($self->config->{backend}->{database}->{port} // 27017);    		 
     $self->client(MongoDB::MongoClient->new(host => $host));
 
-    my $db = $self->config->{database}->{database};
-    if(my $user = $self->config->{database}->{username}) {
-    	if(my $pass = $self->config->{database}->{password}) {
+    my $db = $self->config->{backend}->{database}->{database};
+    if(my $user = $self->config->{backend}->{database}->{username}) {
+    	if(my $pass = $self->config->{backend}->{database}->{password}) {
     		$self->client->authenticate($db, $user, $pass);
     	}
 	}

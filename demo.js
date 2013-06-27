@@ -10,13 +10,18 @@ var mailhost = "YOUR.DOMAIN";
 var demouser = "demo"; // will be demo@YOUR.DOMAIN
 var demopass = "password";
 
-var dbname = "m3mta";
+var dbconfig = "config";
 var dbqueue = "queue";
 var dbstore = "store";
 var dbdomains = "domains";
 var dbmailboxes = "mailboxes";
 
 //------------------------------------------------------------------------------
+
+print("Getting collection: " + dbconfig);
+var config = db.getCollection(dbconfig);
+print("Removing items from collection: " + dbconfig);
+config.remove();
 
 print("Getting collection: " + dbqueue);
 var queue = db.getCollection(dbqueue);
@@ -37,6 +42,88 @@ print("Getting collection: " + dbstore);
 var store = db.getCollection(dbstore);
 print("Removing items from collection: " + dbstore);
 store.remove();
+
+//------------------------------------------------------------------------------
+
+print("Inserting demo SMTP config");
+config.insert({
+    "daemon": "smtp",
+
+    "hostname": mailhost,
+    "ports": [ 25 ],
+
+    "maximum_size": 10240000,
+    "relay": {
+        "auth": 1,
+        "anon": 0 
+    },
+    "commands": {
+        "vrfy": 0,
+        "expn": 0
+    }
+});
+
+print("Inserting demo IMAP config");
+config.insert({
+    "daemon": "imap",
+
+    "hostname": mailhost,
+    "ports": [ 143 ],
+    "field_separator": "/"
+});
+
+print("Inserting demo MDA config");
+config.insert({
+    "daemon": "mda",
+
+    "hostname": mailhost,
+    "postmaster": "M3MTA Postmaster <postmaster@" + mailhost + ">",
+
+    "filters": [
+        "M3MTA::MDA::SpamAssassin"
+    ],
+
+    "retry": {
+        "durations": [
+            {
+                "after": 900,
+                "notify": 0
+            },
+            {
+                "after": 900,
+                "notify": 0
+            },
+            {
+                "after": 1800,
+                "notify": 0
+            },
+            {
+                "after": 7200,
+                "notify": 1
+            },
+            {
+                "after": 32400,
+                "notify": 0
+            },
+            {
+                "after": 43200,
+                "notify": 0
+            },
+            {
+                "after": 86400,
+                "notify": 1
+            },
+            {
+                "after": 172800,
+                "notify": 0
+            },
+            {
+                "after": 259200,
+                "notify": 0
+            }
+        ]
+    }
+});
 
 //------------------------------------------------------------------------------
 

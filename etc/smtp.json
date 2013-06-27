@@ -1,29 +1,27 @@
 {
-    "hostname": "YOUR.DOMAIN",
-    "ports": [ 25 ],
-
-    "backend": "M3MTA::Server::Backend::MongoDB::SMTP",
-
-    "maximum_size": 10240000,
-
-    "relay": {
-        "auth": 1,
-        "anon": 0 
-    },
-
+    "type": "database",
     "database": {
         "hostname": "127.0.0.1",
         "port": 27017,
         "username": null,
         "password": null,
         "database": "m3mta",
-        "queue": { "collection": "queue" },
-        "mailboxes": { "collection": "mailboxes" },
-        "domains": { "collection": "domains" }
+        "collection": "config",
+        "query": {
+            "daemon": "smtp"
+        }
     },
-
-    "commands": {
-        "vrfy": 0,
-        "expn": 0
+    "backend": {
+        "handler": "M3MTA::Server::Backend::MongoDB::SMTP",
+        "database": {
+            "hostname": "127.0.0.1",
+            "port": 27017,
+            "username": null,
+            "password": null,
+            "database": "m3mta",
+            "queue": { "collection": "queue" },
+            "mailboxes": { "collection": "mailboxes" },
+            "domains": { "collection": "domains" }
+        }
     }
 }

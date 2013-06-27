@@ -44,7 +44,7 @@ sub BUILD {
 	my ($self) = @_;
 
 	# Create backend
-    my $backend = $self->config->{backend};
+    my $backend = $self->config->{backend}->{handler};
     if(!$backend) {
         die("No backend found in server configuration");
     }

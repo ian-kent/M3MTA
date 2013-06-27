@@ -14,6 +14,7 @@ REQUIREMENTS
         - MongoDB
         - Some other CPAN modules:
             IO::Socket::SSL
+            Hash::Merge
         - SpamAssassin (if you want to use it, otherwise remove from config)
 
 INSTALLATION

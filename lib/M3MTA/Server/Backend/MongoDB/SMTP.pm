@@ -19,17 +19,17 @@ sub BUILD {
     # Get collections
     $self->queue(
     	$self->database->get_collection(
-    		$self->config->{database}->{queue}->{collection}
+    		$self->config->{backend}->{database}->{queue}->{collection}
     	)
     );
     $self->mailboxes(
     	$self->database->get_collection(
-    		$self->config->{database}->{mailboxes}->{collection}
+    		$self->config->{backend}->{database}->{mailboxes}->{collection}
     	)
     );
     $self->domains(
         $self->database->get_collection(
-            $self->config->{database}->{domains}->{collection}
+            $self->config->{backend}->{database}->{domains}->{collection}
         )
     );
 }
@@ -62,6 +62,7 @@ override 'can_user_send' => sub {
     if(!$mailbox) {
         # The 'from' address isn't local
         # TODO SPF sender checking etc
+        # - perhaps shouldn't be done here - maybe as filter in MDA?
         return 1;
     }
 
@@ -78,7 +79,7 @@ override 'can_user_send' => sub {
 #------------------------------------------------------------------------------
 
 override 'can_accept_mail' => sub {
-    my ($self, $session, $to, $msg_size) = @_;
+    my ($self, $session, $to) = @_;
 
     my ($user, $domain) = split /@/, $to;
     $self->log("Checking if server will accept messages addressed to '$user'\@'$domain'");
@@ -90,7 +91,8 @@ override 'can_accept_mail' => sub {
         $self->log("- Mailbox exists locally:");
         $self->log(Dumper $mailbox);
 
-        if($mailbox->{size}->{maximum} && $mailbox->{size}->{maximum} <= $mailbox->{size}->{current} + $msg_size) {
+        if($mailbox->{size}->{maximum} && $mailbox->{size}->{maximum} <= $mailbox->{size}->{current}) {
+            # not an rfc, this is server mailbox policy
             $self->log("x Mailbox is over size limit");
             return 3; # means mailbox over limit
         }

@@ -1,7 +1,7 @@
 #!/usr/local/bin/perl
 
-use Config::Any;
 use Getopt::Long;
+use M3MTA::Config;
 use M3MTA::Daemon;
 use M3MTA::Server::SMTP;
 use Modern::Perl;
@@ -29,7 +29,7 @@ $smtp_daemon->start(
     begin => sub {
 		print "Starting SMTP daemon\n";
 		$config ||= 'smtp.json';
-		my $cfg = Config::Any->load_files({ files => [$config], use_ext => 1 })->[0]->{$config};
+		my $cfg = M3MTA::Config->new(filename => $config)->load;
 		M3MTA::Server::SMTP->new(config => $cfg)->start;
 	}
 );
