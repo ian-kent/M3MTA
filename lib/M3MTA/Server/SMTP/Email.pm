@@ -1,22 +1,54 @@
-package M3MTA::Util;
+package M3MTA::Server::SMTP::Email;
 
-sub parse {
-    my ($data) = @_;
+use Data::Dumper;
+use Modern::Perl;
+use Moose;
+use Net::DNS::Resolver;
 
-    my $size = 0;
+has 'headers' => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
+has 'body'    => ( is => 'rw', isa => 'Str' );
+has 'size'	  => ( is => 'rw', isa => 'Int' );
 
-    # Extract headers and body
+has 'message' => ( is => 'rw', isa => 'M3MTA::Server::SMTP::Message' );
+
+#------------------------------------------------------------------------------
+
+sub from_message {
+	my ($self, $message) = @_;
+
+	# Call statically or as an object
+	$self = ref $self ? $self : $self->new;
+
+	# Store the original message object
+	$message = $message // $self->message // undef;
+
+	die("No message to parse") unless $message;
+
+    # Parse the message data
+    $self->from_data($message->data);
+
+    # Return self (in case we're called statically)
+    return $self;
+}
+
+#------------------------------------------------------------------------------
+
+sub from_data {
+	my ($self, $data) = @_;
+
+	# Call statically or as an object
+	$self = ref $self ? $self : $self->new;
+
+	# Extract headers and body
     my ($headers, $body) = split /\r\n\r\n/m, $data, 2;
 
+    # Parse the headers
     my @hdrs = split /\r\n/m, $headers;
     my %h = ();
     my $lasthdr = undef;
     for my $hdr (@hdrs) {
-
-        #print STDERR "Testing header: [$hdr]\n";
         if($lasthdr && $hdr =~ /^[\t\s]/) {
             # We've got a multiline header
-            #print STDERR "- Got lasthdr: $hdr\n";
             my $hx = $h{$lasthdr};
             if(ref($hx) eq 'ARRAY') {
                 $hx->[-1] .= "\r\n$hdr";
@@ -26,11 +58,9 @@ sub parse {
             next;
         }
 
-        #print "Processing header $hdr\n";
         my ($key, $value) = split /:\s/, $hdr, 2;
         $lasthdr = $key;
 
-        #print "  - got key[$key] value[$value]\n";
         if($h{$key}) {
             $h{$key} = [$h{$key}] if ref($h{$key}) !~ /ARRAY/;
             push $h{$key}, $value;
@@ -39,34 +69,34 @@ sub parse {
         }
     }
 
-    return {
-        headers => \%h,
-        body => $body,
-        size => length($data) + (scalar @hdrs) + 2, # weird hack, length seems to count \r\n as 1?
-    };
+    # Store everything
+    $self->headers(\%h);
+    $self->body($body);
+
+    # Store the length
+    $self->size(length $data);
+
+    return $self;
 }
 
+#------------------------------------------------------------------------------
+
 sub send_smtp {
-    my ($message, $to, $error) = @_;
-
-    use Data::Dumper;
-
-    print "RELAY: Relaying message to [$to]:\n";
-    print Dumper $message->{headers};
-
+	my ($self, $to, $error) = @_;
+    
+	print "RELAY: Relaying message to [$to]:\n";
     my ($user, $domain) = $to =~ /(.*)@(.*)/;
 
     # DNS lookup
     my $dns = new Net::DNS::Resolver;
     my $mx = $dns->query( $domain, 'MX' );
 
-    my %hosts;
-
     if(!$mx) {
         $$error = "No MX record found for domain $domain";
         return -2; # permanent failure
     }
 
+	my %hosts;
     for my $result ($mx->answer) {
         print Dumper $result;
 
@@ -82,6 +112,7 @@ sub send_smtp {
     }
 
     print Dumper \%hosts;
+
     my @ordered;
     for my $key ( sort { $hosts{$a} cmp $hosts{$b} } keys %hosts ) {
         push @ordered, $key;
@@ -112,8 +143,7 @@ sub send_smtp {
                 print $socket "EHLO gateway.dc4\r\n";
                 $state = 'ehlo';
             } elsif ($state eq 'ehlo') {
-                my ($name, $from) = $message->{headers}->{From} =~ /(.*)?<(.*)>/;
-                #my $from = $message->{headers}->{From};
+                my ($name, $from) = $self->headers->{From} =~ /(.*)?<(.*)>/;
                 print "SENT: MAIL FROM:<$from>\n";
                 print $socket "MAIL FROM:<$from>\r\n";
                 $state = 'mail';
@@ -126,12 +156,12 @@ sub send_smtp {
                 print $socket "DATA\r\n";
                 $state = 'data';
             } elsif ($state eq 'data') {
-                for my $hdr (keys %{$message->{headers}}) {
-                    print "SENT: " . $hdr . ": " . $message->{headers}->{$hdr} . "\n";
-                    print $socket $hdr . ": " . $message->{headers}->{$hdr} . "\r\n";
+                for my $hdr (keys %{$self->headers}) {
+                    print "SENT: " . $hdr . ": " . $self->headers->{$hdr} . "\n";
+                    print $socket $hdr . ": " . $self->headers->{$hdr} . "\r\n";
                 }
                 print $socket "\r\n";
-                my $msg = $message->{body};
+                my $msg = $self->body;
                 # rfc0821 4.5.2 transparency
                 $msg =~ s/\n\./\n\.\./s;
                 print $socket $msg;
@@ -140,7 +170,7 @@ sub send_smtp {
                 $state = 'done';
             } elsif ($state eq 'done') {
                 $success = 1;
-                print "Successfully sent message, maybe!\n";
+                print "Successfully sent message\n";
                 $socket->close;
             }
         }
@@ -152,8 +182,10 @@ sub send_smtp {
         $$error = "No MX hosts responded for domain $domain: " . (join ', ', @ordered);
         return -1; # retryable
     }
-
-    return 1;
+	
+	return 1;
 }
 
-1;
+#------------------------------------------------------------------------------
+
+__PACKAGE__->meta->make_immutable;

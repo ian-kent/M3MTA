@@ -4,7 +4,7 @@ use Modern::Perl;
 use Moose;
 extends 'M3MTA::Server::Backend::IMAP', 'M3MTA::Server::Backend::MongoDB';
 
-use M3MTA::Util;
+use M3MTA::Server::SMTP::Email;
 
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
@@ -51,7 +51,7 @@ override 'append_message' => sub {
     $self->log("Storing message to mailbox [$mailbox] with flags [$flags]");
 
     # Make the message for the store
-    my $obj = M3MTA::Util::parse($content);
+    my $obj = M3MTA::Server::SMTP::Email->from_data($content);
     use Data::Dumper;
     print STDERR Dumper $obj;
 
@@ -69,7 +69,11 @@ override 'append_message' => sub {
 
     my $msg = {
         uid => $mb->{store}->{children}->{$mailbox}->{nextuid},
-        message => $obj,
+        message => {
+            headers => $obj->headers,
+            body => $obj->body,
+            size => $obj->size,
+        },
         mailbox => { domain => $session->auth->{user}->{domain}, user => $session->auth->{user}->{mailbox} },
         path => $mailbox,
         flags => \@flgs,

@@ -12,7 +12,7 @@ use Moose;
 has 'helo' 	=> ( is => 'rw' );
 has 'id'	=> ( is => 'rw' );
 has 'date'	=> ( is => 'rw' );
-has 'to' 	=> ( is => 'rw' );
+has 'to' 	=> ( is => 'rw', isa => 'ArrayRef', default => sub { [] } );
 has 'data' 	=> ( is => 'rw' );
 has 'from'	=> ( is => 'rw' );
 

@@ -6,7 +6,7 @@ extends 'M3MTA::Server::Backend::MDA', 'M3MTA::Server::Backend::MongoDB';
 use Data::Dumper;
 use DateTime;
 use DateTime::Duration;
-use M3MTA::Util;
+use M3MTA::Server::SMTP::Email;
 
 # Collections
 has 'queue' => ( is => 'rw' );
@@ -168,7 +168,11 @@ override 'local_delivery' => sub {
         # Make the message for the store
         my $msg = {
             uid => $mailbox->{store}->{children}->{$path}->{nextuid},
-            message => $email,
+            message => {
+                headers => $email->headers,
+                body => $email->body,
+                size => $email->size,
+            },
             mailbox => { domain => $domain, user => $user },
             path => $path,
             flags => ['\\Unseen', '\\Recent'],
@@ -177,7 +181,7 @@ override 'local_delivery' => sub {
         my $current = $mailbox->{size}->{current};
         use Data::Dumper;
         print Dumper $email;
-        my $msgsize = $email->{size} // "<undef>";
+        my $msgsize = $email->size // "<undef>";
         my $mbox_size = $current + $msgsize;
         print " - Current size [$current], message size [$msgsize], new size [$mbox_size]\n";
 

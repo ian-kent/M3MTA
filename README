@@ -18,6 +18,7 @@ REQUIREMENTS
             Mojolicious (4.14 or later)
             MojoX::IOLoop::Server::StartTLS
             MongoDB
+            Net::DNS::Resolver
 
 INSTALLATION
 ------------

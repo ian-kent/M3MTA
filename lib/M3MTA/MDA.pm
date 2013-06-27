@@ -3,7 +3,7 @@ package M3MTA::MDA;
 use Moose;
 use Modern::Perl;
 
-use M3MTA::Util;
+use M3MTA::Server::SMTP::Email;
 
 use Mojo::IOLoop;
 use Data::Uniqid qw/ luniqid /;
@@ -111,22 +111,22 @@ sub block {
         # TODO find_and_modify
         my $messages = $self->backend->poll;
 
-        for my $email (@$messages) {
-            $self->backend->dequeue($email);
+        for my $message (@$messages) {
+            $self->backend->dequeue($message);
 
-            print "Processing message '" . $email->{id} . "' from '" . $email->{from} . "'\n";
+            print "Processing message '" . $message->{id} . "' from '" . $message->{from} . "'\n";
 
             # Run filters
-            my $data = $email->{data};
-            $email->{filters} = {};
+            my $data = $message->{data};
+            $message->{filters} = {};
             for my $filter (@{$self->filters}) {
                 print " - Calling filter $filter\n";
 
                 # Call the filter
-                my $result = $filter->test($data, $email);
+                my $result = $filter->test($data, $message);
 
                 # Store the result (so later filters can see it)
-                $email->{filters}->{ref($filter)} = $result;
+                $message->{filters}->{ref($filter)} = $result;
 
                 # Copy back the data
                 $data = $result->{data};
@@ -137,12 +137,12 @@ sub block {
                 next;
             }
             # Copy the final result back for delivery
-            $email->{data} = $data;
+            $message->{data} = $data;
 
             # Turn the email into an object
-            my $obj = M3MTA::Util::parse($email->{data});
+            my $email = M3MTA::Server::SMTP::Email->from_data($message->{data});
 
-            for my $to (@{$email->{to}}) {
+            for my $to (@{$message->{to}}) {
                 my ($user, $domain) = split /@/, $to;
                 print " - Recipient '$user'\@'$domain'\n";
 
@@ -154,7 +154,7 @@ sub block {
                     print " - New recipient is '$user'\@'$domain'\n";
                 }
 
-                my $result = $self->backend->local_delivery($user, $domain, $obj);
+                my $result = $self->backend->local_delivery($user, $domain, $email);
 
                 next if $result > 0;
 
@@ -163,8 +163,8 @@ sub block {
                     # TODO postmaster email?
                     print " - Local delivery but no mailbox found\n";
                     $self->backend->notify($self->notification(
-                        $email->{from},
-                        "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                        $message->{from},
+                        "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
                         "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
                     ));
                 }
@@ -174,19 +174,21 @@ sub block {
                     # So, anything which doesn't get caught above, we'll relay here
                     print " - No domain or mailbox entry found, attempting remote delivery\n";
                     my $error = '';
-                    my $res = M3MTA::Util::send_smtp($obj, $to, \$error);
+
+                    # Attempt to send via SMTP
+                    my $res = $email->send_smtp($to, \$error);
 
                     if($res == -1) {
                         # retryable error, so re-queue                  
-                        $res = $self->backend->requeue($email, $error);
+                        $res = $self->backend->requeue($message, $error);
 
                         if($res == 1) {
                             print " - Remote delivery failed with retryable error, message re-queued, no notification sent\n";
                         } elsif ($res == 2) {
                             print " - Remote delivery failed with retryable error, message re-queued, notification sent\n";
                             $self->backend->notify($self->notification(
-                                $email->{from},
-                                "Message delivery delayed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                                $message->{from},
+                                "Message delivery delayed for " . $message->{id} . ": " . $email->{headers}->{Subject},
                                 "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
                             ));
                         } else {
@@ -196,8 +198,8 @@ sub block {
                         # permanent failure
                         print " - Remote delivery failed with permanent error, message dropped\n";
                         $self->backend->notify($self->notification(
-                            $email->{from},
-                            "Message delivery failed for " . $email->{id} . ": " . $obj->{headers}->{Subject},
+                            $message->{from},
+                            "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
                             "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
                         ));
                     }
