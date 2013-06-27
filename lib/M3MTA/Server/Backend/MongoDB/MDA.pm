@@ -7,6 +7,7 @@ use Data::Dumper;
 use DateTime;
 use DateTime::Duration;
 use M3MTA::Server::SMTP::Email;
+use Tie::IxHash;
 
 # Collections
 has 'queue' => ( is => 'rw' );
@@ -51,30 +52,27 @@ override 'get_postmaster' => sub {
 #------------------------------------------------------------------------------
 
 override 'poll' => sub {
-    my ($self, $count) = @_;
+    my ($self) = @_;
 
     # Look for queued emails
-    # TODO limit and delivery_time from requeue
-    my @queued = $self->queue->find({
-    	'$or' => [
-    		{ "status" => "Pending" },
-    		{ "status" => undef },
-    	]
-    })->all;
+    my %cmd;
+    my $cmd = Tie::IxHash->new(
+        findAndModify => 'queue', # TODO configuration
+        remove => 1,
+        query => {
+            '$or' => [
+                { "status" => "Pending" },
+                { "status" => undef },
+            ],
+            "delivery_time" => {
+                '$lte' => DateTime->now,
+            }
+        }
+    );
 
-    $self->queue->update({
-    	'$or' => [
-            { "status" => "Pending" },
-            { "status" => undef },
-        ]
-    },{
-    	'$set' => { "status" => "Delivering" },
-    }, {
-    	"multiple" => 1
-    });
-
-
-    return \@queued;
+    my $result = $self->database->run_command($cmd);
+    return undef if !$result->{ok};
+    return $result->{value};
 };
 
 #------------------------------------------------------------------------------

@@ -154,7 +154,9 @@ override 'queue_message' => sub {
 
     $email->date(DateTime->now);
     eval {
-        $self->queue->insert($email->to_hash);
+        my $data = $email->to_hash;
+        $data->{delivery_time} = DateTime->now;
+        $self->queue->insert($data);
     };
 
     if($email->{data} =~ /Subject: finish_profile/) {

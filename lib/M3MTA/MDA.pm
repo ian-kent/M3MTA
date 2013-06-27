@@ -107,108 +107,111 @@ EOF
 sub block {
 	my ($self) = @_;
 
+    my $inactivity_count = 0;
 	while (1) {       
-        # TODO find_and_modify
-        my $messages = $self->backend->poll;
+        my $message = $self->backend->poll;
 
-        for my $message (@$messages) {
-            $self->backend->dequeue($message);
+        if(!$message) {
+            $inactivity_count++;
+            # Every 10 undef results = 1 second extra
+            my $sleep = 5 + (int($inactivity_count / 10));
+            $sleep = 60 if $sleep > 60;
+            sleep $sleep;
+            next;
+        }
+        $inactivity_count = 0;
 
-            print "Processing message '" . $message->{id} . "' from '" . $message->{from} . "'\n";
+        print "Processing message '" . $message->{id} . "' from '" . $message->{from} . "'\n";
 
-            # Run filters
-            my $data = $message->{data};
-            $message->{filters} = {};
-            for my $filter (@{$self->filters}) {
-                print " - Calling filter $filter\n";
+        # Run filters
+        my $data = $message->{data};
+        $message->{filters} = {};
+        for my $filter (@{$self->filters}) {
+            print " - Calling filter $filter\n";
 
-                # Call the filter
-                my $result = $filter->test($data, $message);
+            # Call the filter
+            my $result = $filter->test($data, $message);
 
-                # Store the result (so later filters can see it)
-                $message->{filters}->{ref($filter)} = $result;
+            # Store the result (so later filters can see it)
+            $message->{filters}->{ref($filter)} = $result;
 
-                # Copy back the data
-                $data = $result->{data};
+            # Copy back the data
+            $data = $result->{data};
+        }
+        if(!defined $data) {
+            # undef data means the message is dropped
+            print " - Filter caused message to be dropped";
+            next;
+        }
+        # Copy the final result back for delivery
+        $message->{data} = $data;
+
+        # Turn the email into an object
+        my $email = M3MTA::Server::SMTP::Email->from_data($message->{data});
+
+        for my $to (@{$message->{to}}) {
+            my ($user, $domain) = split /@/, $to;
+            print " - Recipient '$user'\@'$domain'\n";
+
+            if(lc $user eq 'postmaster') {
+                # we've got a postmaster address, resolve it
+                my $postmaster = $self->backend->get_postmaster($domain);
+                print " - Got postmaster address: $postmaster\n";
+                ($user, $domain) = split /@/, $postmaster;
+                print " - New recipient is '$user'\@'$domain'\n";
             }
-            if(!defined $data) {
-                # undef data means the message is dropped
-                print " - Filter caused message to be dropped";
-                next;
+
+            my $result = $self->backend->local_delivery($user, $domain, $email);
+
+            next if $result > 0;
+
+            if($result == -1) {
+                # was a local delivery, but user didn't exist
+                # TODO postmaster email?
+                print " - Local delivery but no mailbox found\n";
+                $self->backend->notify($self->notification(
+                    $message->{from},
+                    "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                    "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
+                ));
             }
-            # Copy the final result back for delivery
-            $message->{data} = $data;
 
-            # Turn the email into an object
-            my $email = M3MTA::Server::SMTP::Email->from_data($message->{data});
+            if($result == 0) {
+                # We wont bother checking for relay settings, SMTP delivery should have done that already
+                # So, anything which doesn't get caught above, we'll relay here
+                print " - No domain or mailbox entry found, attempting remote delivery\n";
+                my $error = '';
 
-            for my $to (@{$message->{to}}) {
-                my ($user, $domain) = split /@/, $to;
-                print " - Recipient '$user'\@'$domain'\n";
+                # Attempt to send via SMTP
+                my $res = $email->send_smtp($to, \$error);
 
-                if(lc $user eq 'postmaster') {
-                    # we've got a postmaster address, resolve it
-                    my $postmaster = $self->backend->get_postmaster($domain);
-                    print " - Got postmaster address: $postmaster\n";
-                    ($user, $domain) = split /@/, $postmaster;
-                    print " - New recipient is '$user'\@'$domain'\n";
-                }
+                if($res == -1) {
+                    # retryable error, so re-queue                  
+                    $res = $self->backend->requeue($message, $error);
 
-                my $result = $self->backend->local_delivery($user, $domain, $email);
-
-                next if $result > 0;
-
-                if($result == -1) {
-                    # was a local delivery, but user didn't exist
-                    # TODO postmaster email?
-                    print " - Local delivery but no mailbox found\n";
+                    if($res == 1) {
+                        print " - Remote delivery failed with retryable error, message re-queued, no notification sent\n";
+                    } elsif ($res == 2) {
+                        print " - Remote delivery failed with retryable error, message re-queued, notification sent\n";
+                        $self->backend->notify($self->notification(
+                            $message->{from},
+                            "Message delivery delayed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                            "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
+                        ));
+                    } else {
+                        print " - Remote delivery failed with retryable error, requeue also failed, message dropped\n";
+                    }
+                } elsif ($res == -2) {
+                    # permanent failure
+                    print " - Remote delivery failed with permanent error, message dropped\n";
                     $self->backend->notify($self->notification(
                         $message->{from},
                         "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
-                        "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
+                        "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
                     ));
-                }
-
-                if($result == 0) {
-                    # We wont bother checking for relay settings, SMTP delivery should have done that already
-                    # So, anything which doesn't get caught above, we'll relay here
-                    print " - No domain or mailbox entry found, attempting remote delivery\n";
-                    my $error = '';
-
-                    # Attempt to send via SMTP
-                    my $res = $email->send_smtp($to, \$error);
-
-                    if($res == -1) {
-                        # retryable error, so re-queue                  
-                        $res = $self->backend->requeue($message, $error);
-
-                        if($res == 1) {
-                            print " - Remote delivery failed with retryable error, message re-queued, no notification sent\n";
-                        } elsif ($res == 2) {
-                            print " - Remote delivery failed with retryable error, message re-queued, notification sent\n";
-                            $self->backend->notify($self->notification(
-                                $message->{from},
-                                "Message delivery delayed for " . $message->{id} . ": " . $email->{headers}->{Subject},
-                                "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
-                            ));
-                        } else {
-                            print " - Remote delivery failed with retryable error, requeue also failed, message dropped\n";
-                        }
-                    } elsif ($res == -2) {
-                        # permanent failure
-                        print " - Remote delivery failed with permanent error, message dropped\n";
-                        $self->backend->notify($self->notification(
-                            $message->{from},
-                            "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
-                            "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
-                        ));
-                    }
                 }
             }
         }
-
-        #last;
-        sleep 5;
     }
 }
 

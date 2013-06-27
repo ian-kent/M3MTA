@@ -14,7 +14,7 @@ sub local_delivery {
 #------------------------------------------------------------------------------    
 
 sub poll {
-    my ($self, $count) = @_;
+    my ($self) = @_;
 
     die("poll not implemented by backend");
 }
