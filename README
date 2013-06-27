@@ -8,14 +8,16 @@ REQUIREMENTS
 
     You'll need:
         - Perl (preferably 5.16 or later)
-        - Mojolicious (4.14 or later)
-        - mojox-ioloop-server-starttls:
-            https://github.com/ian-kent/mojox-ioloop-server-starttls
         - MongoDB
-        - Some other CPAN modules:
-            IO::Socket::SSL
-            Hash::Merge
         - SpamAssassin (if you want to use it, otherwise remove from config)
+        - CPAN modules:
+            Config::Any
+            Hash::Merge
+            IO::Socket::SSL
+            Mail::SpamAssassin
+            Mojolicious (4.14 or later)
+            MojoX::IOLoop::Server::StartTLS
+            MongoDB
 
 INSTALLATION
 ------------
@@ -30,6 +32,11 @@ INSTALLATION
     before use.
 
     In console mode, no log file or PID file are required.
+
+MONGODB
+-------
+
+    See demo.js and config files in ./etc
 
 STARTING M3MTA
 --------------
