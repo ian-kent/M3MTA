@@ -3,6 +3,8 @@ M3MTA
 
 An experimental mail transfer agent using Mojo::IOLoop and MongoDB.
 
+For development use only. Do NOT use this MTA in a production environment.
+
 CURRENT SUPPORT
 ---------------
 
