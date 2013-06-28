@@ -10,6 +10,11 @@ var mailhost = "YOUR.DOMAIN";
 var demouser = "demo"; // will be demo@YOUR.DOMAIN
 var demopass = "password";
 
+var alias = "user"; // will be user@YOUR.DOMAIN
+var aliasto = "demo@" + mailhost; // forwards to demo@YOUR.DOMAIN
+
+var relayhost = "YOUR.RELAY.DOMAIN";
+
 var dbconfig = "config";
 var dbqueue = "queue";
 var dbstore = "store";
@@ -141,7 +146,21 @@ domains.insert({
     "postmaster": "postmaster@" + mailhost
 });
 
+print("Inserting demo relay domain (i.e. backup MX): " + relayhost);
+domains.insert({
+    "domain": relayhost,
+    "delivery": "relay",
+    "postmaster": "postmaster@" + relayhost
+});
+
 //------------------------------------------------------------------------------
+
+print("Inserting alias mailbox: " + alias + "@" + mailhost);
+mailboxes.insert({
+    "domain": mailhost,
+    "mailbox": alias,
+    "destination": aliasto
+});
 
 print("Inserting demo mailbox: " + demouser + "@" + mailhost);
 mailboxes.insert({
