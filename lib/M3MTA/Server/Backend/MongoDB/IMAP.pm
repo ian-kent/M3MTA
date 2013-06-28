@@ -5,6 +5,7 @@ use Moose;
 extends 'M3MTA::Server::Backend::IMAP', 'M3MTA::Server::Backend::MongoDB';
 
 use M3MTA::Server::SMTP::Email;
+use M3MTA::Log;
 
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
@@ -14,21 +15,21 @@ has 'store' => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
-sub BUILD {
-	my ($self) = @_;
+after 'init_db' => sub {
+    my ($self) = @_;
 
-    # Get collections
-    $self->mailboxes(
-    	$self->database->get_collection(
-    		$self->config->{backend}->{database}->{mailboxes}->{collection}
-    	)
-    );
-    $self->store(
-    	$self->database->get_collection(
-    		$self->config->{backend}->{database}->{store}->{collection}
-    	)
-    );
-}
+    # user mailboxes/aliases
+    my $coll_mbox = $self->config->{backend}->{database}->{mailboxes}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_mbox);
+    $self->mailboxes($self->database->get_collection($coll_mbox));
+
+    # message store (i.e. GridFS behind real mailboxes)
+    my $coll_store = $self->config->{backend}->{database}->{store}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_store);
+    $self->store($self->database->get_collection($coll_store));
+
+    M3MTA::Log->debug("Database initialisation completed");
+};
 
 #------------------------------------------------------------------------------
 
@@ -48,7 +49,7 @@ override 'append_message' => sub {
     my ($self, $session, $mailbox, $flags, $content) = @_;
 
     # TODO
-    $self->log("Storing message to mailbox [$mailbox] with flags [$flags]");
+    M3MTA::Log->debug("Storing message to mailbox [$mailbox] with flags [$flags]");
 
     # Make the message for the store
     my $obj = M3MTA::Server::SMTP::Email->from_data($content);
@@ -65,7 +66,7 @@ override 'append_message' => sub {
     my $mb = $self->mailboxes->find_one($mboxid);
 
     use Data::Dumper;
-    $self->log("Loaded mb:\n%s", (Dumper $mb));
+    M3MTA::Log->debug("Loaded mb:\n%s", (Dumper $mb));
 
     my $msg = {
         uid => $mb->{store}->{children}->{$mailbox}->{nextuid},
@@ -91,7 +92,7 @@ override 'append_message' => sub {
 
     # Save it to the database
     my $oid = $self->store->insert($msg);
-    $self->log("Message stored with ObjectID [$oid], UID [" . $msg->{uid} . "]\n");
+    M3MTA::Log->debug("Message stored with ObjectID [$oid], UID [" . $msg->{uid} . "]\n");
 
     return 1;
 };

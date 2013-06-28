@@ -9,6 +9,8 @@ use DateTime::Duration;
 use M3MTA::Server::SMTP::Email;
 use Tie::IxHash;
 
+use M3MTA::Log;
+
 # Collections
 has 'queue' => ( is => 'rw' );
 has 'mailboxes' => ( is => 'rw' );
@@ -17,33 +19,46 @@ has 'store' => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
-sub BUILD {
-	my ($self) = @_;
+after 'init_db' => sub {
+    my ($self) = @_;
 
-	# TODO configuration
+    # incoming queue from smtp daemon
+    my $coll_queue = $self->config->{backend}->{database}->{queue}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_queue);
+    $self->queue($self->database->get_collection($coll_queue));
 
-	# incoming queue from smtp daemon
-    $self->queue($self->database->get_collection('queue'));
+    # user mailboxes/aliases
+    my $coll_mbox = $self->config->{backend}->{database}->{mailboxes}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_mbox);
+    $self->mailboxes($self->database->get_collection($coll_mbox));
 
-	# user mailboxes/aliases
-	$self->mailboxes($self->database->get_collection('mailboxes'));
+    # domains this system recognises
+    my $coll_domain = $self->config->{backend}->{database}->{domains}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_domain);
+    $self->domains($self->database->get_collection($coll_domain));
 
-	# domains this system recognises
-	$self->domains($self->database->get_collection('domains'));
+    # message store (i.e. GridFS behind real mailboxes)
+    my $coll_store = $self->config->{backend}->{database}->{store}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_store);
+    $self->store($self->database->get_collection($coll_store));
 
-	# message store (i.e. GridFS behind real mailboxes)
-	$self->store($self->database->get_collection('store'));
-}
+    M3MTA::Log->debug("Database initialisation completed");
+};
 
 #------------------------------------------------------------------------------
 
 override 'get_postmaster' => sub {
     my ($self, $domain) = @_;
 
+    M3MTA::Log->debug("Looking for postmaster address for domain " . $domain);
     my $d = $self->domains->find_one({domain => $domain});
+
     if(!$d || !$d->{postmaster}) {
         # use a default address
+        M3MTA::Log->debug("Postmaster address not found, using default postmaster\@$domain");
         return "postmaster\@$domain";
+    } else {
+        M3MTA::Log->debug("Using postmaster address " . $d->{postmaster});
     }
 
     return $d->{postmaster};
@@ -105,7 +120,6 @@ override 'requeue' => sub {
     # config item, this causes the item to not be requeued and for a 
     # permanent failure response to be sent
 
-    # TODO move to db?    
     my $rq = $self->config->{retry}->{durations}->[$email->{requeued}];    
 
     if($rq && $rq->{after}) {
@@ -114,6 +128,8 @@ override 'requeue' => sub {
 
         # TODO timezones
         my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds));
+
+        M3MTA::Log->debug("Requeued email for $rq_seconds seconds at $rq_date");
 
         $email->{delivery_time} = $rq_date;
         $email->{requeued} = int($email->{requeued}) + 1;
@@ -126,16 +142,19 @@ override 'requeue' => sub {
 
         $self->queue->insert($email, { upsert => 1 });
 
-        print STDOUT Data::Dumper::Dumper $email;
+        M3MTA::Log->trace(Data::Dumper::Dumper $email);
 
         if($rq->{notify}) {
             # send a temporary failure message (message requeued)
+            M3MTA::Log->debug("Email requeued, notification requested");
             return 2;
         }
 
+        M3MTA::Log->debug("Email requeued, no notification requested");
         return 1;
     }
 
+    M3MTA::Log->debug("E-mail not requeued");
 	return 0;
 };
 
@@ -144,6 +163,7 @@ override 'requeue' => sub {
 override 'dequeue' => sub {
 	my ($self, $email) = @_;
 
+    M3MTA::Log->debug("Dequeueing e-mail with id: " . $email->{_id});
 	$self->queue->remove({ "_id" => $email->{_id} });
 
 	return 1;
@@ -159,7 +179,7 @@ override 'local_delivery' => sub {
     # ... or a catch-all
     $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
     if($mailbox) {
-        print " - Local mailbox found, attempting GridFS delivery\n";
+        M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
 
         my $path = $mailbox->{delivery}->{path} // 'INBOX';
 
@@ -178,10 +198,10 @@ override 'local_delivery' => sub {
 
         my $current = $mailbox->{size}->{current};
         use Data::Dumper;
-        print Dumper $email;
+        M3MTA::Log->trace(Dumper $email);
         my $msgsize = $email->size // "<undef>";
         my $mbox_size = $current + $msgsize;
-        print " - Current size [$current], message size [$msgsize], new size [$mbox_size]\n";
+        M3MTA::Log->debug("Current size [$current], message size [$msgsize], new size [$mbox_size]");
 
         # Update mailbox next UID
         $self->mailboxes->update({mailbox => $user, domain => $domain}, {
@@ -197,7 +217,7 @@ override 'local_delivery' => sub {
 
         # Save it to the database
         my $oid = $self->store->insert($msg);
-        print " | message stored with ObjectID [$oid], UID [" . $msg->{uid} . "] for User [$user], Domain [$domain]\n";
+        M3MTA::Log->info("Message accepted with ObjectID [$oid], UID [" . $msg->{uid} . "] for User [$user], Domain [$domain]");
 
         # Successful local delivery
         return 1;
@@ -206,19 +226,23 @@ override 'local_delivery' => sub {
     # Check if we have a domain entry for local delivery (means user doesn't exist)
     my $domain2 = $self->domains->find_one({ domain => $domain });
     if($domain2 && $domain2->{delivery} eq 'local') {
-        print " - Domain entry found for local delivery but no user or catch-all exists\n";
+        M3MTA::Log->debug("Domain entry found for local delivery but no user or catch-all exists");
 
         # No local user found
         return -1;
     }
 
     # Not for local delivery
+    M3MTA::Log->debug("Message not for local delivery");
     return 0;
 };
+
+#------------------------------------------------------------------------------
 
 override 'notify' => sub {
     my ($self, $message) = @_;
 
+    $message->{delivery_time} = DateTime->now;
     $self->queue->insert($message);
 
     return 1;

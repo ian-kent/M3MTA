@@ -11,9 +11,9 @@ REQUIREMENTS
         - MongoDB
         - SpamAssassin (if you want to use it, otherwise remove from config)
         - CPAN modules:
-            Config::Any
             Hash::Merge
             IO::Socket::SSL
+            JSON
             Mail::SpamAssassin
             Mojolicious (4.14 or later)
             MojoX::IOLoop::Server::StartTLS

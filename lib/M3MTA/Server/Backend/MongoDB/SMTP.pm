@@ -5,6 +5,7 @@ extends 'M3MTA::Server::Backend::SMTP', 'M3MTA::Server::Backend::MongoDB';
 
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 use Data::Dumper;
+use M3MTA::Log;
 
 # Collections
 has 'queue'     => ( is => 'rw' );
@@ -13,26 +14,26 @@ has 'domains' => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
-sub BUILD {
-	my ($self) = @_;
+after 'init_db' => sub {
+    my ($self) = @_;
 
-    # Get collections
-    $self->queue(
-    	$self->database->get_collection(
-    		$self->config->{backend}->{database}->{queue}->{collection}
-    	)
-    );
-    $self->mailboxes(
-    	$self->database->get_collection(
-    		$self->config->{backend}->{database}->{mailboxes}->{collection}
-    	)
-    );
-    $self->domains(
-        $self->database->get_collection(
-            $self->config->{backend}->{database}->{domains}->{collection}
-        )
-    );
-}
+    # incoming queue from smtp daemon
+    my $coll_queue = $self->config->{backend}->{database}->{queue}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_queue);
+    $self->queue($self->database->get_collection($coll_queue));
+
+    # user mailboxes/aliases
+    my $coll_mbox = $self->config->{backend}->{database}->{mailboxes}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_mbox);
+    $self->mailboxes($self->database->get_collection($coll_mbox));
+
+    # domains this system recognises
+    my $coll_domain = $self->config->{backend}->{database}->{domains}->{collection};
+    M3MTA::Log->debug("Getting collection: " . $coll_domain);
+    $self->domains($self->database->get_collection($coll_domain));
+
+    M3MTA::Log->debug("Database initialisation completed");
+};
 
 #------------------------------------------------------------------------------
 
@@ -40,7 +41,7 @@ override 'get_user' => sub {
     my ($self, $username, $password) = @_;
 
     my $mailbox = $self->mailboxes->find_one({ username => $username, password => $password });
-    $self->log("Trying to load mailbox for '$username' with password '$password': " . (ref($mailbox)));
+    M3MTA::Log->debug("Trying to load mailbox for '$username' with password '$password': " . (ref($mailbox)));
 
     return $mailbox;
 };
@@ -51,13 +52,13 @@ override 'can_user_send' => sub {
     my ($self, $session, $from) = @_;
 
     my ($user, $domain) = split /@/, $from;
-    $self->log("Checking if user is permitted to send from '%s'\@'%s'", $user, $domain);
+    M3MTA::Log->debug("Checking if user is permitted to send from '%s'\@'%s'", $user, $domain);
 
-    $self->log("Auth: %s", Dumper $session->user);
+    M3MTA::Log->debug("Auth: %s", Dumper $session->user);
 
     # Get the mailbox
     my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
-    $self->log("Mailbox: %s", Dumper $mailbox);
+    M3MTA::Log->debug("Mailbox: %s", Dumper $mailbox);
 
     if(!$mailbox) {
         # The 'from' address isn't local
@@ -82,18 +83,18 @@ override 'can_accept_mail' => sub {
     my ($self, $session, $to) = @_;
 
     my ($user, $domain) = split /@/, $to;
-    $self->log("Checking if server will accept messages addressed to '$user'\@'$domain'");
-    $self->log("- User: %s", Dumper $session->user) if $session->user;
+    M3MTA::Log->debug("Checking if server will accept messages addressed to '$user'\@'$domain'");
+    M3MTA::Log->debug("- User: %s", Dumper $session->user) if $session->user;
 
     # Check for local delivery mailboxes (may be an alias, but thats dealt with after queueing)
     my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
     if( $mailbox ) {
-        $self->log("- Mailbox exists locally:");
-        $self->log(Dumper $mailbox);
+        M3MTA::Log->debug("- Mailbox exists locally:");
+        M3MTA::Log->debug(Dumper $mailbox);
 
         if($mailbox->{size}->{maximum} && $mailbox->{size}->{maximum} <= $mailbox->{size}->{current}) {
             # not an rfc, this is server mailbox policy
-            $self->log("x Mailbox is over size limit");
+            M3MTA::Log->debug("x Mailbox is over size limit");
             return 3; # means mailbox over limit
         }
 
@@ -103,43 +104,43 @@ override 'can_accept_mail' => sub {
     # Check if we have a catch-all mailbox (also may be an alias)
     my $catch = $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
     if( $catch ) {
-        $self->log("- Recipient caught by domain catch-all");
+        M3MTA::Log->debug("- Recipient caught by domain catch-all");
         return 1;
     }
 
     # Check if the server is acting as an open relay
     if( $self->config->{relay}->{anon} ) {
-        $self->log("- Server is acting as open relay");
+        M3MTA::Log->debug("- Server is acting as open relay");
         return 1;
     }
 
     # Check if server allows all authenticated users to relay
     if( $session->user && $self->config->{relay}->{auth} ) {
-        $self->log("- User is authenticated and all authenticated users can relay");
+        M3MTA::Log->debug("- User is authenticated and all authenticated users can relay");
         return 1;
     }
 
     # Check if this user can open relay
     if( $session->user && $session->user->{user}->{relay} ) {
-        $self->log("- User has remote relay rights");
+        M3MTA::Log->debug("- User has remote relay rights");
         return 1;
     }
 
     # Check if we have the domain but not the user
     my $rdomain = $self->domains->find_one({ domain => $domain });
     if( $rdomain && $rdomain->{delivery} ne 'relay') {
-        $self->log("- Domain exists as local delivery but user doesn't exist and domain has no catch-all");
+        M3MTA::Log->debug("- Domain exists as local delivery but user doesn't exist and domain has no catch-all");
         return 2; # on this one we let the caller decide what response to give, e.g. so we can give a 
     }
 
     # Finally check if we have a relay domain
     if( $rdomain && $rdomain->{delivery} eq 'relay' ) {
-        $self->log("- Domain exists as 'relay'");
+        M3MTA::Log->debug("- Domain exists as 'relay'");
         return 1;
     }
 
     # None of the above
-    $self->log("x Mail not accepted for delivery");
+    M3MTA::Log->debug("x Mail not accepted for delivery");
     return 0;
 };
 
@@ -160,7 +161,7 @@ override 'queue_message' => sub {
     };
 
     if($email->{data} =~ /Subject: finish_profile/) {
-        $self->log("Finished profiling");
+        M3MTA::Log->debug("Finished profiling");
         DB::finish_profile();
     }
 
@@ -168,10 +169,10 @@ override 'queue_message' => sub {
     my $id = $email->id;
     if($@) {
         @res = ("451", "$id message store failed, please retry later");
-        $self->log("Queue message failed for '%s': %s\n%s", $id, $@, (Dumper $email));
+        M3MTA::Log->debug("Queue message failed for '%s': %s\n%s", $id, $@, (Dumper $email));
     } else {
         @res = ("250", "$id message accepted for delivery");
-        $self->log("Message queued for '%s':\n%s", $id, (Dumper $email));
+        M3MTA::Log->debug("Message queued for '%s':\n%s", $id, (Dumper $email));
     }
 
     return wantarray ? @res : join ' ', @res;

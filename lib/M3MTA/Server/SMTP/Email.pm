@@ -4,6 +4,7 @@ use Data::Dumper;
 use Modern::Perl;
 use Moose;
 use Net::DNS::Resolver;
+use M3MTA::Log;
 
 has 'headers' => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
 has 'body'    => ( is => 'rw', isa => 'Str' );
@@ -84,7 +85,7 @@ sub from_data {
 sub send_smtp {
 	my ($self, $to, $error) = @_;
     
-	print "RELAY: Relaying message to [$to]:\n";
+	M3MTA::Log->debug("Relaying message to: $to");
     my ($user, $domain) = $to =~ /(.*)@(.*)/;
 
     # DNS lookup
@@ -93,13 +94,12 @@ sub send_smtp {
 
     if(!$mx) {
         $$error = "No MX record found for domain $domain";
+        M3MTA::Log->debug("Message relay failed, no MX record for domain $domain");
         return -2; # permanent failure
     }
 
 	my %hosts;
     for my $result ($mx->answer) {
-        print Dumper $result;
-
         my $host = '';
         $host = join '.', @{$result->{exchange}->{label}} if $result->{exchange}->{label};
         my $origin = $result->{exchange}->{origin};
@@ -111,78 +111,83 @@ sub send_smtp {
         $hosts{$host} = $result->{preference};
     }
 
-    print Dumper \%hosts;
+    M3MTA::Log->debug("Found MX hosts (enable TRACE to see)");
+    M3MTA::Log->trace(Dumper \%hosts);
 
     my @ordered;
     for my $key ( sort { $hosts{$a} cmp $hosts{$b} } keys %hosts ) {
         push @ordered, $key;
     }
 
-    print Dumper \@ordered;
-
     my $success = 0;
     for my $host (@ordered) {
-        print "Attempting delivery to host [$host]\n";
+        M3MTA::Log->debug("Attempting delivery to host [$host]");
 
         my $socket = IO::Socket::INET->new(
             PeerAddr => $host,
             PeerPort => 25,
             Proto => 'tcp'
-        ) or print "Error creating socket: $@\n";
-        my $state = 'connect';
-        while (my $data = <$socket>) {
-            my ($cmd, $wait, $arg) = $data =~ /(\d+)(-|\s)(.*)/;
-            $wait = '' if $wait eq ' ';
+        ) or M3MTA::Log->error("Error creating socket: $@");
 
-            print "RECD: data[$data], cmd[$cmd], wait[$wait], arg[$arg]\n";
-            if($wait) {
-                print "Waiting for next line\n";
-            } elsif ($state eq 'connect') {
-                # TODO hostname
-                print "SENT: EHLO gateway.dc4\n";
-                print $socket "EHLO gateway.dc4\r\n";
-                $state = 'ehlo';
-            } elsif ($state eq 'ehlo') {
-                my ($name, $from) = $self->headers->{From} =~ /(.*)?<(.*)>/;
-                print "SENT: MAIL FROM:<$from>\n";
-                print $socket "MAIL FROM:<$from>\r\n";
-                $state = 'mail';
-            } elsif ($state eq 'mail') {
-                print "SENT: RCPT TO:<$to>\n";
-                print $socket "RCPT TO:<$to>\r\n";
-                $state = 'rcpt';
-            } elsif ($state eq 'rcpt') {
-                print "SENT: DATA\n";
-                print $socket "DATA\r\n";
-                $state = 'data';
-            } elsif ($state eq 'data') {
-                for my $hdr (keys %{$self->headers}) {
-                    print "SENT: " . $hdr . ": " . $self->headers->{$hdr} . "\n";
-                    print $socket $hdr . ": " . $self->headers->{$hdr} . "\r\n";
-                }
-                print $socket "\r\n";
-                my $msg = $self->body;
-                # rfc0821 4.5.2 transparency
-                $msg =~ s/\n\./\n\.\./s;
-                print $socket $msg;
-                print "SENT: " . $msg . "\n";
-                print $socket "\r\n.\r\n";
-                $state = 'done';
-            } elsif ($state eq 'done') {
-                $success = 1;
-                print "Successfully sent message\n";
-                $socket->close;
-            }
-        }
+        if($socket) {
+	        my $state = 'connect';
+	        while (my $data = <$socket>) {
+	            my ($cmd, $wait, $arg) = $data =~ /(\d+)(-|\s)(.*)/;
+	            $wait = '' if $wait eq ' ';
+
+	            M3MTA::Log->trace("RECD: data[$data], cmd[$cmd], wait[$wait], arg[$arg]");
+
+	            if($wait) {
+	                M3MTA::Log->trace("Waiting for next line");
+	            } elsif ($state eq 'connect') {
+	                # TODO hostname
+	                M3MTA::Log->trace("SENT: EHLO gateway.dc4");
+	                print $socket "EHLO gateway.dc4\r\n";
+	                $state = 'ehlo';
+	            } elsif ($state eq 'ehlo') {
+	                my ($name, $from) = $self->headers->{From} =~ /(.*)?<(.*)>/;
+	                M3MTA::Log->trace("SENT: MAIL FROM:<$from>");
+	                print $socket "MAIL FROM:<$from>\r\n";
+	                $state = 'mail';
+	            } elsif ($state eq 'mail') {
+	                M3MTA::Log->trace("SENT: RCPT TO:<$to>");
+	                print $socket "RCPT TO:<$to>\r\n";
+	                $state = 'rcpt';
+	            } elsif ($state eq 'rcpt') {
+	                M3MTA::Log->trace("SENT: DATA");
+	                print $socket "DATA\r\n";
+	                $state = 'data';
+	            } elsif ($state eq 'data') {
+	                for my $hdr (keys %{$self->headers}) {
+	                    M3MTA::Log->trace("SENT: " . $hdr . ": " . $self->headers->{$hdr});
+	                    print $socket $hdr . ": " . $self->headers->{$hdr} . "\r\n";
+	                }
+	                print $socket "\r\n";
+	                my $msg = $self->body;
+	                # rfc0821 4.5.2 transparency
+	                $msg =~ s/\n\./\n\.\./s;
+	                print $socket $msg;
+	                M3MTA::Log->trace("SENT: " . $msg);
+	                print $socket "\r\n.\r\n";
+	                $state = 'done';
+	            } elsif ($state eq 'done') {
+	                $success = 1;
+	                M3MTA::Log->debug("Successfully sent message via SMTP");
+	                $socket->close;
+	            }
+	        }
+	    }
 
         last if $success;
     }
 
     if(!$success) {
+    	M3MTA::Log->debug("No MX hosts responded for domain $domain: " . (join ', ', @ordered));
         $$error = "No MX hosts responded for domain $domain: " . (join ', ', @ordered);
         return -1; # retryable
     }
-	
+
+    M3MTA::Log->debug("Message successfully relayed to $to");
 	return 1;
 }
 
