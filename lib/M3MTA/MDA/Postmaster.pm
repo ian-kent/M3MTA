@@ -42,6 +42,11 @@ sub test {
 			$lines //= 100;
 			my $file = "/var/log/m3mta/$daemon.log.$log";
 			$data .= "Last $lines lines of $file:\n";
+			if($lines > 10000) {
+				$lines = 10000;
+				$data .= "(Lines limited to $lines)\n";
+			}
+			$data .= "\n";
 			$data .= `tail -n$lines $file`;
 		}
 
