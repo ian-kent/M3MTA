@@ -13,6 +13,9 @@ var demopass = "password";
 var alias = "user"; // will be user@YOUR.DOMAIN
 var aliasto = "demo@" + mailhost; // forwards to demo@YOUR.DOMAIN
 
+var extalias = "external"; // will be external@YOUR.DOMAIN
+var extaliasto = "YOUR.NAME@EXTERNAL.DOMAIN";
+
 var relayhost = "YOUR.RELAY.DOMAIN";
 
 var dbconfig = "config";
@@ -155,11 +158,18 @@ domains.insert({
 
 //------------------------------------------------------------------------------
 
-print("Inserting alias mailbox: " + alias + "@" + mailhost);
+print("Inserting alias mailbox: " + alias + "@" + mailhost + " -> " + aliasto);
 mailboxes.insert({
     "domain": mailhost,
     "mailbox": alias,
     "destination": aliasto
+});
+
+print("Inserting alias mailbox: " + extalias + "@" + mailhost + " -> " + extaliasto);
+mailboxes.insert({
+    "domain": mailhost,
+    "mailbox": extalias,
+    "destination": extaliasto
 });
 
 print("Inserting demo mailbox: " + demouser + "@" + mailhost);

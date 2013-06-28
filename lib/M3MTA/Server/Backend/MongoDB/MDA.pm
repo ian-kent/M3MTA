@@ -188,14 +188,32 @@ override 'dequeue' => sub {
 #------------------------------------------------------------------------------
 
 override 'local_delivery' => sub {
-    my ($self, $user, $domain, $email) = @_;
+    my ($self, $user, $domain, $email, $dest) = @_;
 
     # Check if we have a real mailbox entry
     my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
     # ... or a catch-all
     $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
 
+    # Lookup aliases
+    while($mailbox && $mailbox->{destination}) {
+        $$dest = $mailbox->{destination};
+        M3MTA::Log->debug("Mailbox is alias, looking up $dest");
+
+        ($user, $domain) = split /@/, $mailbox->{destination};
+        $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
+        $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });        
+
+        if($mailbox) {
+            M3MTA::Log->debug("Alias refers to local mailbox");
+        } else {
+            M3MTA::Log->debug("Alias points to external address");
+            return -3; # Alias
+        }
+    }
+
     if($mailbox) {
+        M3MTA::Log->debug(Dumper $mailbox);
         M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
 
         my $path = $mailbox->{delivery}->{path} // 'INBOX';

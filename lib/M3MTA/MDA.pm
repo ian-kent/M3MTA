@@ -201,9 +201,16 @@ sub process_message {
         }
 
         # Attempt to deliver locally
-        my $result = $self->backend->local_delivery($user, $domain, $email);
+        my $dest = undef;
+        my $result = $self->backend->local_delivery($user, $domain, $email, \$dest);
 
         next if $result > 0;
+
+        if($result == -3) {
+            M3MTA::Log->debug("Local delivery resulted in external alias");
+            $to = $dest;
+            $result = 0; # Attempt external delivery below
+        }
 
         if($result == -1) {
             # was a local delivery, but user didn't exist
