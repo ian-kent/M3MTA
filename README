@@ -3,6 +3,27 @@ M3MTA
 
 An experimental mail transfer agent using Mojo::IOLoop and MongoDB.
 
+CURRENT SUPPORT
+---------------
+
+    SMTP
+        - Basic SMTP
+        - Extended SMTP
+        - SIZE
+        - TLS
+        - 8BITMIME
+        - SMTP AUTH
+    IMAP
+        - IMAP4rev1
+        - TLS
+
+    Local MongoDB backed mailboxes
+    Remote message delivery using SMTP
+    Internal message delivery
+    Internal and remote aliases
+    Act as backup MX
+    SpamAssassin
+
 REQUIREMENTS
 ------------
 
