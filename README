@@ -17,12 +17,16 @@ CURRENT SUPPORT
         - IMAP4rev1
         - TLS
 
-    Local MongoDB backed mailboxes
-    Remote message delivery using SMTP
-    Internal message delivery
-    Internal and remote aliases
-    Act as backup MX
-    SpamAssassin
+    Features:
+        - Local message delivery using MongoDB
+        - Remote message delivery using SMTP
+        - Local, remote and chained aliases
+        - Catch-all mailboxes or aliases
+        - Can act as backup MX
+        - Supports SpamAssassin
+        - Mailbox size limits and maximum message size
+        - Configurable retry times and notifications
+        - Simple expansion using filters and hooks
 
 REQUIREMENTS
 ------------
