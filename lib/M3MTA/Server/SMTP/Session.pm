@@ -73,8 +73,11 @@ sub begin {
     $self->stream->on(read => sub {
         my ($stream, $chunk) = @_;
 
-        $self->buffer(($self->buffer ? $self->buffer : '') . $chunk);
-        $self->receive if $self->buffer =~ /\r?\n$/m;
+        my @parts = split /\r\n/, $chunk;
+        for my $part (@parts) {
+            $self->buffer(($self->buffer ? $self->buffer : '') . $part . "\r\n");
+            $self->receive if $self->buffer =~ /\r?\n$/m;
+        }
     });
 }
 
@@ -92,9 +95,8 @@ sub receive {
         }
     }
     
-    # Only continue if we had an EOL
+    # Clear the buffer
     my $buffer = $self->buffer;
-    return unless $buffer =~ /\r\n$/gs; #FIXME not necessary? done above
     $self->buffer('');
 
     # Get the command and data
@@ -104,13 +106,14 @@ sub receive {
     # SMTP commands aren't case sensitive, we are!
     $cmd = uc $cmd;
 
-    # Call the command hook, and exit if we get a negative response
+    # Call the command hook
     my $result = {
         bad_command => 0,
         response => undef,
     };
     $self->smtp->call_hook('command', $self, $cmd, $data, $result);
     if($result->{response}) {
+        # A hook provided a response
         $self->respond(@{$result->{response}});
         return;
     }

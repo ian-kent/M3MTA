@@ -27,7 +27,7 @@ sub init_db {
              . ($self->config->{backend}->{database}->{hostname} // "localhost")
              . ":" 
              . ($self->config->{backend}->{database}->{port} // 27017);   
-                    
+
     M3MTA::Log->debug("Connecting to host: " . $host);
     $self->client(MongoDB::MongoClient->new(host => $host));
     M3MTA::Log->debug("Connection successful");

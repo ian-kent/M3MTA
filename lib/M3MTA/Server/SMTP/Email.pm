@@ -141,8 +141,9 @@ sub send_smtp {
 	                M3MTA::Log->trace("Waiting for next line");
 	            } elsif ($state eq 'connect') {
 	                # TODO hostname
-	                M3MTA::Log->trace("SENT: EHLO gateway.dc4");
-	                print $socket "EHLO gateway.dc4\r\n";
+	                my $hostname = M3MTA::Config->existing->config->{hostname};
+	                M3MTA::Log->trace("SENT: EHLO $hostname");
+	                print $socket "EHLO $hostname\r\n";
 	                $state = 'ehlo';
 	            } elsif ($state eq 'ehlo') {
 	                my ($name, $from) = $self->headers->{From} =~ /(.*)?<(.*)>/;

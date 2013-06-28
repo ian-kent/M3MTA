@@ -16,6 +16,18 @@ has 'filename' => ( is => 'rw', isa => 'Str' );
 
 has 'config'   => ( is => 'rw', isa => 'HashRef' );
 
+our $existing = undef;
+
+sub BUILD {
+	my ($self) = @_;
+	$existing = $self;
+}
+
+sub existing {
+	my ($package) = @_;
+	return $existing;
+}
+
 sub load {
 	my ($self) = @_;
 
