@@ -53,7 +53,7 @@ sub BUILD {
         if($@) {
             M3MTA::Log->error("Unable to load filter $filter");
         } else {
-            my $o = $filter->new;
+            my $o = $filter->new(mda => $self);
             push $self->filters, $o;
             M3MTA::Log->debug("Filter successfully registered");
         }
@@ -178,7 +178,7 @@ sub process_message {
     if(!defined $data) {
         # undef data means the message is dropped
         M3MTA::Log->debug("Filter caused message to be dropped");
-        next;
+        return;
     }
 
     # Copy the final result back for delivery

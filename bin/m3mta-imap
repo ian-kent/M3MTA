@@ -5,6 +5,7 @@ use M3MTA::Config;
 use M3MTA::Daemon;
 use M3MTA::Server::IMAP;
 use Modern::Perl;
+use M3MTA::Log;
 
 my ($stop, $daemon, $config, $pidfile, $logfile);
 GetOptions(
@@ -27,7 +28,7 @@ exit $imap_daemon->stop if $stop;
 
 $imap_daemon->start(
     begin => sub {
-        print "Starting IMAP daemon\n";
+        M3MTA::Log->info("Starting IMAP daemon");
         $config ||= 'imap.json';
         my $cfg = M3MTA::Config->new(filename => $config)->load;
         M3MTA::Server::IMAP->new(config => $cfg)->start;

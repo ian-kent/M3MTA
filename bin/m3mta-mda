@@ -5,6 +5,7 @@ use M3MTA::Daemon;
 use M3MTA::MDA;
 use Getopt::Long;
 use Modern::Perl;
+use M3MTA::Log;
 
 my ($stop, $daemon, $config, $pidfile, $logfile);
 GetOptions(
@@ -27,7 +28,7 @@ exit $mda_daemon->stop if $stop;
 
 $mda_daemon->start(
     begin => sub {   
-        print "Starting MDA daemon\n";
+        M3MTA::Log->info("Starting MDA daemon");
         $config ||= 'mda.json';
         my $cfg = M3MTA::Config->new(filename => $config)->load;
         M3MTA::MDA->new(config => $cfg)->block;

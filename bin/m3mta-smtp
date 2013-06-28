@@ -5,6 +5,7 @@ use M3MTA::Config;
 use M3MTA::Daemon;
 use M3MTA::Server::SMTP;
 use Modern::Perl;
+use M3MTA::Log;
 
 my ($stop, $daemon, $config, $pidfile, $logfile);
 GetOptions(
@@ -27,7 +28,7 @@ exit $smtp_daemon->stop if $stop;
 
 $smtp_daemon->start(
     begin => sub {
-		print "Starting SMTP daemon\n";
+		M3MTA::Log->info("Starting SMTP daemon");
 		$config ||= 'smtp.json';
 		my $cfg = M3MTA::Config->new(filename => $config)->load;
 		M3MTA::Server::SMTP->new(config => $cfg)->start;

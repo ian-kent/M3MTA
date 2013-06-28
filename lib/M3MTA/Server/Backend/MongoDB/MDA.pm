@@ -69,8 +69,9 @@ override 'get_postmaster' => sub {
 override 'poll' => sub {
     my ($self) = @_;
 
+    M3MTA::Log->trace("Polling for queued emails (enable TRACE to see query");
+
     # Look for queued emails
-    my %cmd;
     my $cmd = Tie::IxHash->new(
         findAndModify => 'queue', # TODO configuration
         remove => 1,
@@ -84,8 +85,11 @@ override 'poll' => sub {
             }
         }
     );
+    M3MTA::Log->trace(Dumper $cmd);
 
     my $result = $self->database->run_command($cmd);
+    M3MTA::Log->trace(Dumper $result);
+
     return undef if !$result->{ok};
     return $result->{value};
 };
@@ -129,8 +133,6 @@ override 'requeue' => sub {
         # TODO timezones
         my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds));
 
-        M3MTA::Log->debug("Requeued email for $rq_seconds seconds at $rq_date");
-
         $email->{delivery_time} = $rq_date;
         $email->{requeued} = int($email->{requeued}) + 1;
         $email->{attempts} = [] if !$email->{attempts};
@@ -140,18 +142,24 @@ override 'requeue' => sub {
         };
         $email->{status} = 'Pending';
 
-        $self->queue->insert($email, { upsert => 1 });
-
+        M3MTA::Log->debug("Requeueing email for $rq_seconds seconds at $rq_date (enable TRACE to see content)");
         M3MTA::Log->trace(Data::Dumper::Dumper $email);
 
-        if($rq->{notify}) {
-            # send a temporary failure message (message requeued)
-            M3MTA::Log->debug("Email requeued, notification requested");
-            return 2;
+        my $result = $self->queue->insert($email, { upsert => 1 });
+        if($result->{ok}) {
+            if($rq->{notify}) {
+                # send a temporary failure message (message requeued)
+                M3MTA::Log->debug("Email requeued, notification requested");
+                return 2;
+            }
+
+            M3MTA::Log->debug("Email requeued, no notification requested");
+            return 1;
         }
 
-        M3MTA::Log->debug("Email requeued, no notification requested");
-        return 1;
+        M3MTA::Log->debug("E-mail not requeued, database error (enable TRACE to see result)");
+        M3MTA::Log->trace(Dumper $result);
+        return 0;
     }
 
     M3MTA::Log->debug("E-mail not requeued");
@@ -164,7 +172,15 @@ override 'dequeue' => sub {
 	my ($self, $email) = @_;
 
     M3MTA::Log->debug("Dequeueing e-mail with id: " . $email->{_id});
-	$self->queue->remove({ "_id" => $email->{_id} });
+	my $result = $self->queue->remove({ "_id" => $email->{_id} });
+
+    if($result->{ok}) {
+        M3MTA::Log->debug("E-mail dequeued (enable TRACE to see result)");
+    } else {
+        M3MTA::Log->error("Failed to dequeue e-mail (enable TRACE to see result)");
+    }
+
+    M3MTA::Log->trace(Dumper $result);
 
 	return 1;
 };
@@ -178,10 +194,12 @@ override 'local_delivery' => sub {
     my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
     # ... or a catch-all
     $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
+
     if($mailbox) {
         M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
 
         my $path = $mailbox->{delivery}->{path} // 'INBOX';
+        M3MTA::Log->debug("Delivering message to: $path");
 
         # Make the message for the store
         my $msg = {
@@ -196,15 +214,15 @@ override 'local_delivery' => sub {
             flags => ['\\Unseen', '\\Recent'],
         };
 
+        M3MTA::Log->trace(Dumper $msg);
+
         my $current = $mailbox->{size}->{current};
-        use Data::Dumper;
-        M3MTA::Log->trace(Dumper $email);
         my $msgsize = $email->size // "<undef>";
         my $mbox_size = $current + $msgsize;
-        M3MTA::Log->debug("Current size [$current], message size [$msgsize], new size [$mbox_size]");
+        M3MTA::Log->debug("Current mailbox size [$current], message size [$msgsize], new size [$mbox_size]");
 
         # Update mailbox next UID
-        $self->mailboxes->update({mailbox => $user, domain => $domain}, {
+        my $result = $self->mailboxes->update({mailbox => $user, domain => $domain}, {
             '$inc' => {
                 "store.children.$path.nextuid" => 1,
                 "store.children.$path.unseen" => 1,
@@ -214,6 +232,13 @@ override 'local_delivery' => sub {
                 "size.current" => $mbox_size,
             }
         } );
+
+        if($result->{ok}) {
+            M3MTA::Log->debug("Mailbox successfully updated, storing message");
+        } else {
+            M3MTA::Log->debug("Mailbox failed to update, temporary failure");
+            return -2;
+        }
 
         # Save it to the database
         my $oid = $self->store->insert($msg);
@@ -241,6 +266,9 @@ override 'local_delivery' => sub {
 
 override 'notify' => sub {
     my ($self, $message) = @_;
+
+    M3MTA::Log->debug("Queueing notification message (enable TRACE to see content)");
+    M3MTA::Log->trace(Dumper $message);
 
     $message->{delivery_time} = DateTime->now;
     $self->queue->insert($message);

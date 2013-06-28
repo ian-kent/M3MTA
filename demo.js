@@ -80,8 +80,15 @@ config.insert({
     "postmaster": "M3MTA Postmaster <postmaster@" + mailhost + ">",
 
     "filters": [
+        "M3MTA::MDA::Postmaster",
         "M3MTA::MDA::SpamAssassin"
     ],
+
+    "filter_config": {
+        "M3MTA::MDA::Postmaster": {
+            "superuser": demouser + "@" + mailhost
+        }
+    },
 
     "retry": {
         "durations": [
