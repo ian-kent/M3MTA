@@ -200,6 +200,7 @@ sub process_message {
             M3MTA::Log->debug("New recipient is '$user'\@'$domain'");
         }
 
+        # Attempt to deliver locally
         my $result = $self->backend->local_delivery($user, $domain, $email);
 
         next if $result > 0;
@@ -251,8 +252,9 @@ sub process_message {
                         "Your message to $to could not be delivered - too many retries.\r\n\r\nTemporary delivery failure: $error"
                     ));
                 }
-            } elsif ($res == -2) {
+            } elsif ($res == -2 || $res == -3) {
                 # permanent failure
+                # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
                 M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
                 $self->backend->notify($self->notification(
                     $message->{from},

@@ -93,10 +93,20 @@ sub send_smtp {
     my $mx = $dns->query( $domain, 'MX' );
 
     if(!$mx) {
-        $$error = "No MX record found for domain $domain";
-        M3MTA::Log->debug("Message relay failed, no MX record for domain $domain");
-        return -2; # permanent failure
+    	M3MTA::Log->debug("No MX record found, looking up A record");
+
+    	my $a = $dns->query( $domain, 'A' );
+    	if(!$a) {
+	        $$error = "No MX or A record found for domain $domain";
+	        M3MTA::Log->debug("Message relay failed, no MX or A record for domain $domain");
+	        return -2; # permanent failure, no hostname
+    	}
+
+    	M3MTA::Log->debug("Using A record in place of missing MX record");
+    	$mx = $a;
     }
+
+    my $hostname = M3MTA::Config->existing->config->{hostname};
 
 	my %hosts;
     for my $result ($mx->answer) {
@@ -108,15 +118,25 @@ sub send_smtp {
             $origin = $origin->{origin};
         }
 
+		# Make sure the domain isn't this host
+		# TODO can probably do a better job of this!
+    	next if lc $host eq lc $hostname;
+
         $hosts{$host} = $result->{preference};
     }
 
-    M3MTA::Log->debug("Found MX hosts (enable TRACE to see)");
+    M3MTA::Log->debug("Found MX hosts (enable TRACE to see list)");
     M3MTA::Log->trace(Dumper \%hosts);
 
     my @ordered;
     for my $key ( sort { $hosts{$a} cmp $hosts{$b} } keys %hosts ) {
         push @ordered, $key;
+    }
+
+    if(scalar @ordered == 0) {
+    	$$error = "No destination hosts found for domain $domain";
+        M3MTA::Log->debug("Message relay failed, no valid destination hosts found");
+        return -3; # permanent failure, no hostname after filter
     }
 
     my $success = 0;
@@ -140,8 +160,6 @@ sub send_smtp {
 	            if($wait) {
 	                M3MTA::Log->trace("Waiting for next line");
 	            } elsif ($state eq 'connect') {
-	                # TODO hostname
-	                my $hostname = M3MTA::Config->existing->config->{hostname};
 	                M3MTA::Log->trace("SENT: EHLO $hostname");
 	                print $socket "EHLO $hostname\r\n";
 	                $state = 'ehlo';
