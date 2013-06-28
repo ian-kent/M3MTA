@@ -9,6 +9,7 @@ use DateTime::Duration;
 use M3MTA::Server::SMTP::Email;
 use Tie::IxHash;
 
+use M3MTA::Server::Backend::MongoDB::Util;
 use M3MTA::Log;
 
 # Collections
@@ -69,7 +70,7 @@ override 'get_postmaster' => sub {
 override 'poll' => sub {
     my ($self) = @_;
 
-    M3MTA::Log->trace("Polling for queued emails (enable TRACE to see query");
+    M3MTA::Log->trace("Polling for queued emails");
 
     # Look for queued emails
     my $cmd = Tie::IxHash->new(
@@ -90,7 +91,11 @@ override 'poll' => sub {
     my $result = $self->database->run_command($cmd);
     M3MTA::Log->trace(Dumper $result);
 
-    return undef if !$result->{ok};
+    if(!$result->{ok}) {
+        M3MTA::Log->error("Error polling for messages: " . (Dumper $result));
+        return undef;
+    }
+    
     return $result->{value};
 };
 
@@ -190,83 +195,24 @@ override 'dequeue' => sub {
 override 'local_delivery' => sub {
     my ($self, $user, $domain, $email, $dest) = @_;
 
-    # Check if we have a real mailbox entry
-    my $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
-    # ... or a catch-all
-    $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });
+    # Get the local mailbox
+    my $mailbox = $self->util->get_mailbox($user, $domain);
 
-    # Lookup aliases
-    while($mailbox && $mailbox->{destination}) {
-        $$dest = $mailbox->{destination};
-        M3MTA::Log->debug("Mailbox is alias, looking up $dest");
+    if($mailbox && $mailbox->{alias}) {
+        # Mailbox is external alias
+        M3MTA::Log->debug("Destination is external alias");
+        $$dest = $mailbox->{alias};
 
-        ($user, $domain) = split /@/, $mailbox->{destination};
-        $mailbox = $self->mailboxes->find_one({ mailbox => $user, domain => $domain });
-        $mailbox ||= $self->mailboxes->find_one({ mailbox => '*', domain => $domain });        
-
-        if($mailbox) {
-            M3MTA::Log->debug("Alias refers to local mailbox");
-        } else {
-            M3MTA::Log->debug("Alias points to external address");
-            return -3; # Alias
-        }
-    }
-
-    if($mailbox) {
-        M3MTA::Log->debug(Dumper $mailbox);
+        return -3;
+    } elsif ($mailbox) {
+        # Attempt local delivery
         M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
+        M3MTA::Log->trace(Dumper $mailbox);
 
-        my $path = $mailbox->{delivery}->{path} // 'INBOX';
-        M3MTA::Log->debug("Delivering message to: $path");
-
-        # Make the message for the store
-        my $msg = {
-            uid => $mailbox->{store}->{children}->{$path}->{nextuid},
-            message => {
-                headers => $email->headers,
-                body => $email->body,
-                size => $email->size,
-            },
-            mailbox => { domain => $domain, user => $user },
-            path => $path,
-            flags => ['\\Unseen', '\\Recent'],
-        };
-
-        M3MTA::Log->trace(Dumper $msg);
-
-        my $current = $mailbox->{size}->{current};
-        my $msgsize = $email->size // "<undef>";
-        my $mbox_size = $current + $msgsize;
-        M3MTA::Log->debug("Current mailbox size [$current], message size [$msgsize], new size [$mbox_size]");
-
-        # Update mailbox next UID
-        my $result = $self->mailboxes->update({mailbox => $user, domain => $domain}, {
-            '$inc' => {
-                "store.children.$path.nextuid" => 1,
-                "store.children.$path.unseen" => 1,
-                "store.children.$path.recent" => 1 
-            },
-            '$set' => {
-                "size.current" => $mbox_size,
-            }
-        } );
-
-        if($result->{ok}) {
-            M3MTA::Log->debug("Mailbox successfully updated, storing message");
-        } else {
-            M3MTA::Log->debug("Mailbox failed to update, temporary failure");
-            return -2;
-        }
-
-        # Save it to the database
-        my $oid = $self->store->insert($msg);
-        M3MTA::Log->info("Message accepted with ObjectID [$oid], UID [" . $msg->{uid} . "] for User [$user], Domain [$domain]");
-
-        # Successful local delivery
-        return 1;
+        return $self->util->add_to_mailbox($user, $domain, $mailbox, $email);
     }
 
-    # Check if we have a domain entry for local delivery (means user doesn't exist)
+    # Mailbox not found, check if we have a domain entry for local delivery (i.e. invalid user)
     my $domain2 = $self->domains->find_one({ domain => $domain });
     if($domain2 && $domain2->{delivery} eq 'local') {
         M3MTA::Log->debug("Domain entry found for local delivery but no user or catch-all exists");

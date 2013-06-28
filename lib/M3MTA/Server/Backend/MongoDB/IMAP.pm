@@ -4,6 +4,7 @@ use Modern::Perl;
 use Moose;
 extends 'M3MTA::Server::Backend::IMAP', 'M3MTA::Server::Backend::MongoDB';
 
+use Data::Dumper;
 use M3MTA::Server::SMTP::Email;
 use M3MTA::Log;
 
@@ -46,55 +47,35 @@ override 'get_user' => sub {
 #------------------------------------------------------------------------------
 
 override 'append_message' => sub {
-    my ($self, $session, $mailbox, $flags, $content) = @_;
+    my ($self, $session, $path, $flags, $content) = @_;
 
-    # TODO
-    M3MTA::Log->debug("Storing message to mailbox [$mailbox] with flags [$flags]");
+    M3MTA::Log->debug("Storing message to path [$path]");
 
     # Make the message for the store
-    my $obj = M3MTA::Server::SMTP::Email->from_data($content);
-    use Data::Dumper;
-    print STDERR Dumper $obj;
+    my $email = M3MTA::Server::SMTP::Email->from_data($content);    
+    M3MTA::Log->debug(Dumper $email);
 
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';
 
-    my $mboxid = {
-    	mailbox => $session->auth->{user}->{mailbox},
-    	domain => $session->auth->{user}->{domain}
-    };
-    my $mb = $self->mailboxes->find_one($mboxid);
+    M3MTA::Log->debug("Setting flags: " . (join ', ', @flgs));
+
+    my $mailbox = $self->util->get_mailbox(
+        $session->auth->{user}->{mailbox},
+        $session->auth->{user}->{domain}
+    );
 
     use Data::Dumper;
-    M3MTA::Log->debug("Loaded mb:\n%s", (Dumper $mb));
+    M3MTA::Log->debug("Loaded mailbox:\n%s", (Dumper $mailbox));
 
-    my $msg = {
-        uid => $mb->{store}->{children}->{$mailbox}->{nextuid},
-        message => {
-            headers => $obj->headers,
-            body => $obj->body,
-            size => $obj->size,
-        },
-        mailbox => { domain => $session->auth->{user}->{domain}, user => $session->auth->{user}->{mailbox} },
-        path => $mailbox,
-        flags => \@flgs,
-    };
-
-    # Update mailbox next UID
-    $self->mailboxes->update({mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}}, {
-        '$inc' => {
-            "store.children.$mailbox.nextuid" => 1,
-            "store.children.$mailbox.recent" => 1,
-            "store.children.$mailbox.unseen" => 1,
-            "store.children.$mailbox.exists" => 1,
-        } 
-    } );
-
-    # Save it to the database
-    my $oid = $self->store->insert($msg);
-    M3MTA::Log->debug("Message stored with ObjectID [$oid], UID [" . $msg->{uid} . "]\n");
-
-    return 1;
+    return $self->util->add_to_mailbox(
+        $session->auth->{user}->{mailbox},
+        $session->auth->{user}->{domain},
+        $mailbox,
+        $email,
+        $path,
+        \@flgs
+    );
 };
 
 #------------------------------------------------------------------------------
@@ -144,6 +125,8 @@ override 'create_folder' => sub {
 	return 1;
 };
 
+#------------------------------------------------------------------------------
+
 override 'delete_folder' => sub {
     my ($self, $session, $path) = @_;
 
@@ -168,6 +151,8 @@ override 'delete_folder' => sub {
 
 	return 1;
 };
+
+#------------------------------------------------------------------------------
 
 override 'rename_folder' => sub {
 	my ($self, $session, $path, $to) = @_;
@@ -194,6 +179,8 @@ override 'rename_folder' => sub {
 
 	return 1;
 };
+
+#------------------------------------------------------------------------------
 
 override 'select_folder' => sub {
 	my ($self, $session, $path, $mode) = @_;
@@ -230,6 +217,8 @@ override 'select_folder' => sub {
     }
 };
 
+#------------------------------------------------------------------------------
+
 override 'subcribe_folder' => sub {
 	my ($self, $session, $path) = @_;
 
@@ -247,6 +236,8 @@ override 'subcribe_folder' => sub {
 	return 1;
 };
 
+#------------------------------------------------------------------------------
+
 override 'unsubcribe_folder' => sub {
 	my ($self, $session, $path) = @_;
 
@@ -263,6 +254,8 @@ override 'unsubcribe_folder' => sub {
 
 	return 1;
 };
+
+#------------------------------------------------------------------------------
 
 override 'fetch_folders' => sub {
 	my ($self, $session, $ref, $filter, $subscribed) = @_;
@@ -291,6 +284,8 @@ override 'fetch_folders' => sub {
 
     return \@folders;
 };
+
+#------------------------------------------------------------------------------
 
 override 'uid_copy' => sub {
     my ($self, $session, $from, $to, $dest) = @_;
@@ -358,6 +353,8 @@ override 'uid_copy' => sub {
 
     return 1;
 };
+
+#------------------------------------------------------------------------------
 
 override 'uid_store' => sub {
 	my ($self, $session, $from, $to, $params) = @_;

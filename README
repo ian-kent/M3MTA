@@ -30,6 +30,10 @@ CURRENT SUPPORT
         - Configurable retry times and notifications
         - Simple expansion using filters and hooks
 
+    Scalability:
+        - Multiple IMAP, SMTP or MDA daemons can be started
+        - Configure MongoDB to use sharded collections and replica sets
+
 REQUIREMENTS
 ------------
 

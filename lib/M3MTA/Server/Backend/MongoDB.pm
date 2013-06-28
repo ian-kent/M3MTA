@@ -4,17 +4,20 @@ use Modern::Perl;
 use Moose;
 
 use MongoDB::MongoClient;
+use M3MTA::Server::Backend::MongoDB::Util;
 use M3MTA::Log;
 
 # Database
 has 'client'    => ( is => 'rw' );
 has 'database'  => ( is => 'rw' );
+has 'util'      => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
 sub BUILD {
 	my ($self) = @_;
 
+    $self->util(M3MTA::Server::Backend::MongoDB::Util->new(backend => $self));
     $self->init_db;
 }
 
