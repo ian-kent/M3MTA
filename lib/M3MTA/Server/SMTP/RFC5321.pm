@@ -37,6 +37,8 @@ sub register {
 	    ERROR_IN_PROCESSING							=> 451,
 	    INSUFFICIENT_SYSTEM_STORAGE					=> 452,
 
+        UNABLE_TO_ACCOMODATE_PARAMETERS             => 455,
+
 		COMMAND_NOT_UNDERSTOOD                      => 500,
 		SYNTAX_ERROR_IN_PARAMETERS                  => 501,
 		COMMAND_NOT_IMPLEMENTED                     => 502,
@@ -48,6 +50,7 @@ sub register {
 	    EXCEEDED_STORAGE_ALLOCATION					=> 552,
 	    MAILBOX_NAME_NOT_ALLOWED					=> 553,
 	    TRANSACTION_FAILED							=> 554,
+        MAIL_FROM_TO_PARAMETERS_NOT_RECOGNISED      => 555,
 	});
 
 	# Add a receive hook to prevent commands before a HELO
@@ -234,26 +237,33 @@ sub rcpt {
 
     if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
         M3MTA::Log->debug("Checking delivery for $recipient");
-        my $r = $session->smtp->can_accept_mail($session, $recipient);
 
-        if($r == $M3MTA::Server::Backend::SMTP::REJECTED) {
-            M3MTA::Log->debug("Delivery rejected");
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send to this address");
-            return;
-        }
-        
-        if($r == $M3MTA::Server::Backend::SMTP::REJECTED_LOCAL_USER_INVALID) {
-            # local delivery domain but no user
-            M3MTA::Log->debug("Local delivery but user not found");
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
-            return;
-        }
+        if($recipient =~ /^postmaster$/i) {
+            M3MTA::Log->debug("Auto-accepting, address is reserved postmaster with no domain");
+        } elsif (my ($r, $d) = $recipient =~ /^postmaster@(.*)$/i) {
+            M3MTA::Log->debug("Auto-accepting, address is reserved postmaster for domain $d");
+        } else {
+            my $r = $session->smtp->can_accept_mail($session, $recipient);
 
-        if($r == $M3MTA::Server::Backend::SMTP::REJECTED_OVER_LIMIT) {
-        	# mailbox is over size
-            M3MTA::Log->debug("Local delivery but user is over limit");
-        	$session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Mailbox exceeds maximum size");
-        	return;
+            if($r == $M3MTA::Server::Backend::SMTP::REJECTED) {
+                M3MTA::Log->debug("Delivery rejected");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send to this address");
+                return;
+            }
+            
+            if($r == $M3MTA::Server::Backend::SMTP::REJECTED_LOCAL_USER_INVALID) {
+                # local delivery domain but no user
+                M3MTA::Log->debug("Local delivery but user not found");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
+                return;
+            }
+
+            if($r == $M3MTA::Server::Backend::SMTP::REJECTED_OVER_LIMIT) {
+            	# mailbox is over size
+                M3MTA::Log->debug("Local delivery but user is over limit");
+            	$session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Mailbox exceeds maximum size");
+            	return;
+            }
         }
 
         push @{$session->stash('envelope')->to}, $recipient;
