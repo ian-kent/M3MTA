@@ -4,7 +4,7 @@ use Modern::Perl;
 use Moose;
 
 use Data::Dumper;
-use M3MTA::Server::SMTP::Message;
+use M3MTA::Server::Models::Message;
 
 #------------------------------------------------------------------------------
 
@@ -18,6 +18,25 @@ has 'user'	 => ( is => 'rw' );
 has 'buffer' => ( is => 'rw' );
 has 'email'  => ( is => 'rw' );
 has 'state'	 => ( is => 'rw' );
+
+#------------------------------------------------------------------------------
+
+has '_stash' => ( is => 'rw', isa => 'HashRef' );
+
+sub stash {
+    my $self = shift;
+
+    $self->_stash({}) if !$self->_stash;
+
+    return $self->_stash unless @_;
+
+    return $self->_stash->{$_[0]} unless @_ > 1 || ref $_[0];
+
+    my $values = ref $_[0] ? $_[0] : {@_};
+    for my $key (keys %$values) {
+        $self->_stash->{$key} = $values->{$key};
+    }
+}
 
 #------------------------------------------------------------------------------
 
@@ -60,7 +79,7 @@ sub begin {
     }
 
     $self->buffer('');
-    $self->email(new M3MTA::Server::SMTP::Message);
+    $self->email(M3MTA::Server::Models::Message->new);
     $self->state('ACCEPT');
 
     $self->stream->on(error => sub {

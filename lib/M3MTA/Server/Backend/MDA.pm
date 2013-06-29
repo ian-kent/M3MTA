@@ -5,6 +5,14 @@ extends 'M3MTA::Server::Backend';
 
 use M3MTA::Log;
 
+use Readonly;
+Readonly our $EXTERNAL_ALIAS => -3;
+Readonly our $USER_NOT_FOUND => -1;
+Readonly our $NOT_LOCAL_DELIVERY => 0;
+
+Readonly our $FAILED => 0;
+Readonly our $SUCCESSFUL => 1;
+
 #------------------------------------------------------------------------------
 
 sub local_delivery {

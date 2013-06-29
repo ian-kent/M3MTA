@@ -186,19 +186,16 @@ sub mail {
     $session->email->to([]);
     $session->email->data('');
 
-    if($data =~ /^From:\s*<(.+)>$/i) {
-        $session->log("Checking user against '%s'", $1);
-        my $r = eval {
-            return $session->smtp->can_user_send($session, $1);
-        };
-        $session->log("Error: %s", $@) if $@;
+    if(my ($from) = $data =~ /^From:\s*<(.+)>$/i) {
+        $session->log("Checking user against '$from'");
+        my $r = $session->smtp->can_user_send($session, $from);
 
         if(!$r) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
             return;
         }
-        $session->email->from($1);
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 sender ok");
+        $session->email->from($from);
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$from sender ok");
         return;
     }
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
@@ -219,36 +216,36 @@ sub rcpt {
     }
 
     if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
-        print "Checking delivery for $recipient\n";
-        my $r = eval {
-            return $session->smtp->can_accept_mail($session, $recipient);
-        };
-        print "Error: $@\n" if $@;
-        print "RESULT IS: $r\n";
-        if(!$r) {
+        M3MTA::Log->debug("Checking delivery for $recipient");
+        my $r = $session->smtp->can_accept_mail($session, $recipient);
+
+        if($r == $M3MTA::Server::Backend::SMTP::REJECTED) {
+            M3MTA::Log->debug("Delivery rejected");
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send to this address");
             return;
         }
         
-        if($r == 2) {
+        if($r == $M3MTA::Server::Backend::SMTP::REJECTED_LOCAL_USER_INVALID) {
             # local delivery domain but no user
+            M3MTA::Log->debug("Local delivery but user not found");
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
             return;
         }
 
-        if($r == 3) {
+        if($r == $M3MTA::Server::Backend::SMTP::REJECTED_OVER_LIMIT) {
         	# mailbox is over size
+            M3MTA::Log->debug("Local delivery but user is over limit");
         	$session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Mailbox exceeds maximum size");
         	return;
         }
 
-        if(!$session->email->to) {
-            $session->email->to([]);
-        }
         push @{$session->email->to}, $recipient;
+        M3MTA::Log->debug("Delivery accepted");
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
         return;
     }
+
+    M3MTA::Log->debug("Invalid recipient: $data");
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Invalid recipient");
 }
 
@@ -270,13 +267,17 @@ sub data {
         }
 
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{START_MAIL_INPUT}, "Send mail, end with \".\" on line by itself");
+        $session->stash('DATA' => '');
         $session->state('DATA');
         return;
 	}
 
 	# Called again after DATA command
-	if($session->buffer =~ /.*\r\n\.\r\n$/s) {
-        my $data = $session->buffer;        
+    $session->stash->{'data'} .= $session->buffer;
+    $session->buffer('');
+
+	if($session->stash('data') =~ /.*\r\n\.\r\n$/s) {
+        my $data = $session->stash('data');
         $data =~ s/\r\n\.\r\n$//s;
 
         # rfc0821 4.5.2 transparency
@@ -353,7 +354,7 @@ sub rset {
     my ($self, $session, $data) = @_;
 
     $session->buffer('');
-    $session->email(new M3MTA::Server::SMTP::Message);
+    $session->email(M3MTA::Server::Models::Message->new);
     $session->state('ACCEPT');
 
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");

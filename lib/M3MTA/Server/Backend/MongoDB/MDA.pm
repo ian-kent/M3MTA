@@ -10,7 +10,9 @@ use M3MTA::Server::SMTP::Email;
 use Tie::IxHash;
 
 use M3MTA::Server::Backend::MongoDB::Util;
+use M3MTA::Server::Models::Message;
 use M3MTA::Log;
+use MongoDB::OID;
 
 # Collections
 has 'queue' => ( is => 'rw' );
@@ -52,17 +54,16 @@ override 'get_postmaster' => sub {
     my ($self, $domain) = @_;
 
     M3MTA::Log->debug("Looking for postmaster address for domain " . $domain);
-    my $d = $self->domains->find_one({domain => $domain});
+    my $d = $self->util->get_domain($domain);
 
-    if(!$d || !$d->{postmaster}) {
+    if(!$d || !$d->postmaster) {
         # use a default address
         M3MTA::Log->debug("Postmaster address not found, using default postmaster\@$domain");
         return "postmaster\@$domain";
-    } else {
-        M3MTA::Log->debug("Using postmaster address " . $d->{postmaster});
     }
 
-    return $d->{postmaster};
+    M3MTA::Log->debug("Using postmaster address " . $d->postmaster);
+    return $d->postmaster;
 };
 
 #------------------------------------------------------------------------------
@@ -92,19 +93,19 @@ override 'poll' => sub {
     M3MTA::Log->trace(Dumper $result);
 
     if(!$result->{ok}) {
-        M3MTA::Log->error("Error polling for messages: " . (Dumper $result));
+        M3MTA::Log->error("Error in query polling for message: " . (Dumper $result));
         return undef;
     }
+
+    return undef if !$result->{value};
     
-    return $result->{value};
+    return M3MTA::Server::Models::Message->new->from_json($result->{value});
 };
 
 #------------------------------------------------------------------------------
 
 override 'requeue' => sub {
 	my ($self, $email, $error) = @_;
-
-	$email->{requeued} = 0 if !$email->{requeued};
 
     # Why these values are chosen in default config
     # 1: +900    (15m after queued)
@@ -129,7 +130,7 @@ override 'requeue' => sub {
     # config item, this causes the item to not be requeued and for a 
     # permanent failure response to be sent
 
-    my $rq = $self->config->{retry}->{durations}->[$email->{requeued}];    
+    my $rq = $self->config->{retry}->{durations}->[$email->requeued];    
 
     if($rq && $rq->{after}) {
         # Requeue for delivery
@@ -138,20 +139,18 @@ override 'requeue' => sub {
         # TODO timezones
         my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds));
 
-        $email->{delivery_time} = $rq_date;
-        $email->{requeued} = int($email->{requeued}) + 1;
-        $email->{attempts} = [] if !$email->{attempts};
-        push $email->{attempts}, {
+        $email->delivery_time($rq_date);
+        $email->requeued(int($email->{requeued}) + 1);
+        push $email->attempts, M3MTA::Server::Models::Message::Attempt->new(
             date => DateTime->now,
-            reason => $error,
-        };
-        $email->{status} = 'Pending';
+            error => $error,
+        );
+        $email->status('Pending');
 
-        M3MTA::Log->debug("Requeueing email for $rq_seconds seconds at $rq_date (enable TRACE to see content)");
-        M3MTA::Log->trace(Data::Dumper::Dumper $email);
+        M3MTA::Log->debug("Requeueing email for $rq_seconds seconds at $rq_date");
 
-        my $result = $self->queue->insert($email, { upsert => 1 });
-        if($result->{ok}) {
+        my $result = $self->util->add_to_queue($email);
+        if($result) {
             if($rq->{notify}) {
                 # send a temporary failure message (message requeued)
                 M3MTA::Log->debug("Email requeued, notification requested");
@@ -163,7 +162,6 @@ override 'requeue' => sub {
         }
 
         M3MTA::Log->debug("E-mail not requeued, database error (enable TRACE to see result)");
-        M3MTA::Log->trace(Dumper $result);
         return 0;
     }
 
@@ -174,10 +172,10 @@ override 'requeue' => sub {
 #------------------------------------------------------------------------------
 
 override 'dequeue' => sub {
-	my ($self, $email) = @_;
+	my ($self, $id) = @_;
 
-    M3MTA::Log->debug("Dequeueing e-mail with id: " . $email->{_id});
-	my $result = $self->queue->remove({ "_id" => $email->{_id} });
+    M3MTA::Log->debug("Dequeueing e-mail with id: $id");
+	my $result = $self->queue->remove({ "_id" => MongoDB::OID->new($id) });
 
     if($result->{ok}) {
         M3MTA::Log->debug("E-mail dequeued (enable TRACE to see result)");
@@ -198,12 +196,12 @@ override 'local_delivery' => sub {
     # Get the local mailbox
     my $mailbox = $self->util->get_mailbox($user, $domain);
 
-    if($mailbox && $mailbox->{alias}) {
+    if($mailbox && ref($mailbox) =~ /::Alias$/) {
         # Mailbox is external alias
         M3MTA::Log->debug("Destination is external alias");
-        $$dest = $mailbox->{alias};
+        $$dest = $mailbox->destination;
 
-        return -3;
+        return $M3MTA::Server::Backend::MDA::EXTERNAL_ALIAS;
     } elsif ($mailbox) {
         # Attempt local delivery
         M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
@@ -218,12 +216,12 @@ override 'local_delivery' => sub {
         M3MTA::Log->debug("Domain entry found for local delivery but no user or catch-all exists");
 
         # No local user found
-        return -1;
+        return $M3MTA::Server::Backend::MDA::USER_NOT_FOUND;
     }
 
     # Not for local delivery
     M3MTA::Log->debug("Message not for local delivery");
-    return 0;
+    return $M3MTA::Server::Backend::MDA::NOT_LOCAL_DELIVERY;
 };
 
 #------------------------------------------------------------------------------
@@ -231,13 +229,12 @@ override 'local_delivery' => sub {
 override 'notify' => sub {
     my ($self, $message) = @_;
 
-    M3MTA::Log->debug("Queueing notification message (enable TRACE to see content)");
-    M3MTA::Log->trace(Dumper $message);
+    M3MTA::Log->debug("Queueing notification message");
 
-    $message->{delivery_time} = DateTime->now;
-    $self->queue->insert($message);
+    $message->delivery_time(DateTime->now);
+    my $result = $self->util->add_to_queue($message);
 
-    return 1;
+    return $result ? $M3MTA::Server::Backend::MDA::SUCCESSFUL : $M3MTA::Server::Backend::MDA::FAILED;
 };
 
 #------------------------------------------------------------------------------

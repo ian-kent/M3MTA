@@ -3,6 +3,15 @@ package M3MTA::Server::Backend::SMTP;
 use Moose;
 extends 'M3MTA::Server::Backend';
 
+use Readonly;
+Readonly our $REJECTED => 0;
+Readonly our $ACCEPTED => 1;
+Readonly our $REJECTED_LOCAL_USER_INVALID => 2;
+Readonly our $REJECTED_OVER_LIMIT => 3;
+
+Readonly our $SUCCESSFUL => 1;
+Readonly our $TEMPORARY_FAILURE => -2;
+
 #------------------------------------------------------------------------------
 
 sub get_user {

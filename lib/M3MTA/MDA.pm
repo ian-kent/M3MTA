@@ -17,6 +17,9 @@ use Email::Date::Format qw/email_date/;
 
 use M3MTA::Log;
 
+use M3MTA::Server::Backend::MDA;
+use M3MTA::Server::Backend::SMTP;
+
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
 
@@ -157,11 +160,11 @@ sub block {
 sub process_message {
     my ($self, $message) = @_;
 
-    M3MTA::Log->info("Processing message '" . $message->{id} . "' from '" . $message->{from} . "'");
+    M3MTA::Log->info("Processing message '" . $message->id . "' from '" . $message->from . "'");
 
     # Run filters
-    my $data = $message->{data};
-    $message->{filters} = {};
+    my $data = $message->data;
+    $message->filters({});
     for my $filter (@{$self->filters}) {
         M3MTA::Log->debug("Calling filter $filter");
 
@@ -169,7 +172,7 @@ sub process_message {
         my $result = $filter->test($data, $message);
 
         # Store the result (so later filters can see it)
-        $message->{filters}->{ref($filter)} = $result;
+        $message->filters->{ref($filter)} = $result;
 
         # Copy back the data
         $data = $result->{data};
@@ -182,13 +185,13 @@ sub process_message {
     }
 
     # Copy the final result back for delivery
-    $message->{data} = $data;
+    $message->data($data);
 
     # Turn the email into an object
-    my $email = M3MTA::Server::SMTP::Email->from_data($message->{data});
+    my $content = M3MTA::Server::SMTP::Email->new->from_data($data);
 
     # Try and send to all recipients
-    for my $to (@{$message->{to}}) {
+    for my $to (@{$message->to}) {
         my ($user, $domain) = split /@/, $to;
         M3MTA::Log->debug("Recipient '$user'\@'$domain'");
 
@@ -202,7 +205,7 @@ sub process_message {
 
         # Attempt to deliver locally
         my $dest = undef;
-        my $result = $self->backend->local_delivery($user, $domain, $email, \$dest);
+        my $result = $self->backend->local_delivery($user, $domain, $content, \$dest);
 
         next if $result > 0;
 
@@ -215,10 +218,10 @@ sub process_message {
         if($result == -1) {
             # was a local delivery, but user didn't exist
             # TODO postmaster email?
-            M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->{from});
+            M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->from);
             $self->backend->notify($self->notification(
-                $message->{from},
-                "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                $message->from,
+                "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
                 "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
             ));
         }
@@ -230,32 +233,32 @@ sub process_message {
 
             # Attempt to send via SMTP
             my $error = '';
-            my $res = $email->send_smtp($to, \$error);
+            my $res = $content->send_smtp($to, \$error);
 
             if($res == -1) {
                 # retryable error, so re-queue    
                 # but change the to address first, we've got an error
                 # so we need to split this user off from the rest
-                my $orig_to = $message->{to};
-                $message->{to} = $to;
+                my $orig_to = $message->to;
+                $message->to([$to]);
                 $res = $self->backend->requeue($message, $error);
-                $message->{to} = $orig_to;
+                $message->to($orig_to);
 
                 if($res == 1) {
                     M3MTA::Log->info("Remote delivery failed with retryable error, message re-queued, no notification sent");
                 } elsif ($res == 2) {
                     M3MTA::Log->info("Remote delivery failed with retryable error, message re-queued, notification sent to " . $message->{from});
                     $self->backend->notify($self->notification(
-                        $message->{from},
-                        "Message delivery delayed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                        $message->from,
+                        "Message delivery delayed for " . $message->id . ": " . $content->headers->{Subject},
                         "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
                     ));
                 } else {
                     # TODO notification?
                     M3MTA::Log->info("Remote delivery failed with retryable error, requeue also failed, message dropped, notification sent to " . $message->{from});
                     $self->backend->notify($self->notification(
-                        $message->{from},
-                        "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                        $message->from,
+                        "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
                         "Your message to $to could not be delivered - too many retries.\r\n\r\nTemporary delivery failure: $error"
                     ));
                 }
@@ -264,8 +267,8 @@ sub process_message {
                 # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
                 M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
                 $self->backend->notify($self->notification(
-                    $message->{from},
-                    "Message delivery failed for " . $message->{id} . ": " . $email->{headers}->{Subject},
+                    $message->from,
+                    "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
                     "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
                 ));
             } elsif ($res == 1) {

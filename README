@@ -51,6 +51,7 @@ REQUIREMENTS
             MojoX::IOLoop::Server::StartTLS
             MongoDB
             Net::DNS::Resolver
+            Readonly
 
 INSTALLATION
 ------------

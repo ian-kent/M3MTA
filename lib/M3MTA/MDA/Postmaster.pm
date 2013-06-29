@@ -15,17 +15,17 @@ sub test {
 
 	M3MTA::Log->debug("Testing message content with Postmaster");
 
-	if($email->{from} ne $self->mda->config->{filter_config}->{"M3MTA::MDA::Postmaster"}->{superuser}) {
+	if($email->from ne $self->mda->config->{filter_config}->{"M3MTA::MDA::Postmaster"}->{superuser}) {
 		M3MTA::Log->debug("Sender is not a superuser");
 		return {
 			data => $content
 		};
 	}
 
-	M3MTA::Log->debug("Sender '" . $email->{from} . "' is a superuser");
+	M3MTA::Log->debug("Sender '" . $email->from . "' is a superuser");
 
 	my @recipients = ();
-	for my $to (@{$email->{to}}) {
+	for my $to (@{$email->to}) {
 		if($to !~ /^m3\@mta:\/\//) {
 			push @recipients, $to;
 			next;
@@ -63,7 +63,7 @@ EOF
 ;
 		}
 
-		my $message = $self->mda->notification($email->{from}, "M3MTA Postmaster response", $data);
+		my $message = $self->mda->notification($email->from, "M3MTA Postmaster response", $data);
 		$self->mda->backend->notify($message);
 		M3MTA::Log->debug("Response queued");
 	}
@@ -74,7 +74,7 @@ EOF
 			data => undef,
 		};
 	}
-	$email->{to} = \@recipients;
+	$email->to(\@recipients);
 
 	return {
 		data => $content

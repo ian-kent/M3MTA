@@ -7,6 +7,8 @@ M3MTA::Server::SMTP::RFC2554 - SMTP AUTH
 use Modern::Perl;
 use Moose;
 
+use M3MTA::Log;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 #------------------------------------------------------------------------------
@@ -51,7 +53,7 @@ sub helo {
 sub auth {
 	my ($self, $session, $data) = @_;
 
-    if($session->user && $session->user->{success}) {
+    if($session->user) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "Error: already authenticated");
         return;
     }
@@ -97,12 +99,12 @@ sub authenticate {
     $session->buffer('');
 
     my ($authtype) = $session->state =~ /^AUTHENTICATE-(\w+)/;
-    $session->log("authtype: %s", $authtype);
+    M3MTA::Log->debug("authtype: $authtype");
 
     for($authtype) {
         when (/LOGIN/) {
-            $session->log("Authenticating using LOGIN mechanism");
-            if(!$session->user || !$session->user->{username}) {
+            M3MTA::Log->debug("Authenticating using LOGIN mechanism");
+            if(!$session->user || !$session->stash('username')) {
                 my $username;
                 eval {
                     $username = decode_base64($buffer);
@@ -113,10 +115,11 @@ sub authenticate {
                     $session->log("Auth error: $@");
                     $session->state('ACCEPT');
                     $session->user(undef);
+                    delete $session->stash->{username} if $session->stash->{username};
+                    delete $session->stash->{password} if $session->stash->{password};
                     return;
                 }
-                $session->user({});
-                $session->user->{username} = $username;
+                $session->stash(username => $username);
                 $session->respond(334, "UGFzc3dvcmQ6");
             } else {
                 my $password;
@@ -129,19 +132,22 @@ sub authenticate {
                     $session->log("Auth error: $@");
                     $session->state('ACCEPT');
                     $session->user(undef);
+                    delete $session->stash->{username} if $session->stash->{username};
+                    delete $session->stash->{password} if $session->stash->{password};
                     return;
                 }
-                $session->user->{password} = $password;
-                $session->log("LOGIN: Username [" . $session->user->{username} . "], Password [$password]");
+                $session->stash(password => $password);
+                $session->log("LOGIN: Username [" . $session->stash('username') . "], Password [$password]");
 
-                my $user = $session->smtp->get_user($session->user->{username}, $password);
+                my $user = $session->smtp->get_user($session->stash('username'), $password);
                 if(!$user) {
                     $session->respond(535, "LOGIN authentication failed");
                     $session->user(undef);
+                    delete $session->stash->{username} if $session->stash->{username};
+                    delete $session->stash->{password} if $session->stash->{password};
                 } else {
                     $session->respond(235, "authentication successful");
-                    $session->user->{success} = 1;
-                    $session->user->{user} = $user;
+                    $session->user($user);
                 }
 
                 $session->state('ACCEPT');
@@ -184,11 +190,7 @@ sub authenticate {
                 $session->user(undef);
             } else {
                 $session->respond(235, "authentication successful");
-                $session->user({});
-                $session->user->{username} = $username;
-                $session->user->{password} = $password;
-                $session->user->{user} = $authed;
-                $session->user->{success} = 1;
+                $session->user($authed);
             }
             $session->state('ACCEPT');
         }
