@@ -3,6 +3,7 @@ package M3MTA::MDA;
 use Moose;
 use Modern::Perl;
 
+use M3MTA::Server::Models::Message;
 use M3MTA::Server::SMTP::Email;
 
 use Mojo::IOLoop;
@@ -91,16 +92,15 @@ EOF
 ;
     $msg_data =~ s/\r?\n\./\r\n\.\./gm;
 
-    my $msg = {
-        date => $msg_date,
-        status => 'Pending',
-        data => $msg_data,
-        helo => "localhost",
-        id => "$msg_id",
-        from => $msg_from,
-        to => [ $to ],
-    };
-
+    my $msg = M3MTA::Server::Models::Message->new;
+    $msg->created($msg_date);
+    $msg->status('Pending');
+    $msg->data($msg_data);
+    $msg->helo('localhost');
+    $msg->id($msg_id);
+    $msg->from($msg_from);
+    $msg->to([$to]);
+    $msg->delivery_time($msg_date);
     return $msg;
 }
 

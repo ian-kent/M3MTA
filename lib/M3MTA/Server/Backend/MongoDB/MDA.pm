@@ -231,7 +231,7 @@ override 'notify' => sub {
 
     M3MTA::Log->debug("Queueing notification message");
 
-    $message->delivery_time(DateTime->now);
+    $message->delivery_time(DateTime->now) unless $message->delivery_time;
     my $result = $self->util->add_to_queue($message);
 
     return $result ? $M3MTA::Server::Backend::MDA::SUCCESSFUL : $M3MTA::Server::Backend::MDA::FAILED;
