@@ -1,4 +1,4 @@
-package M3MTA::Server::Models::Message::Attempt;
+package M3MTA::Storage::Message::Attempt;
 
 use Modern::Perl;
 use Moose;

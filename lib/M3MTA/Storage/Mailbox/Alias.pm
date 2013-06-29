@@ -1,8 +1,8 @@
-package M3MTA::Server::Models::Mailbox::Alias;
+package M3MTA::Storage::Mailbox::Alias;
 
 use Modern::Perl;
 use Moose;
-extends 'M3MTA::Server::Models::Mailbox';
+extends 'M3MTA::Storage::Mailbox';
 
 has 'destination' => ( is => 'rw', isa => 'Str' );
 

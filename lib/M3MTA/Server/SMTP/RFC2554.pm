@@ -17,10 +17,27 @@ sub register {
 	my ($self, $smtp) = @_;
 
     # Register this RFC
-    if(!$smtp->has_rfc('RFC1869') && !$smtp->has_rfc('RFC5321')) {
-        die "M3MTA::Server::SMTP::RFC2554 requires RFC1869 or RFC5321";
+    if(!$smtp->has_rfc('RFC5321')) {
+        die "M3MTA::Server::SMTP::RFC2554 requires RFC5321";
     }
     $smtp->register_rfc('RFC2554', $self);
+
+    # Add some reply codes
+    $smtp->register_replycode({
+        AUTHENTICATION_SUCCESSFUL  => 235,
+
+        SERVER_CHALLENGE           => 334,
+
+        PASSWORD_TRANSITION_NEEDED => 432,
+
+        TEMPORARY_FAILURE          => 454,
+
+        UNKNOWN_AUTH_FAIL_TODO     => 535,
+
+        AUTHENTICATION_REQUIRED    => 530,
+        AUTHENTICATION_TOO_WEAK    => 534,
+        ENCRYPTION_REQUIRED        => 538,
+    });
 
 	# Register the AUTH command
 	$smtp->register_command(['AUTH'], sub {
@@ -73,18 +90,15 @@ sub auth {
                 $session->buffer('');
                 return;
             }
-            # TODO 334 constant
-            $session->respond(334);
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE});
         }
         when (/^LOGIN$/) {
-            # TODO 334 constant
-            $session->respond(334, "VXNlcm5hbWU6");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "VXNlcm5hbWU6");
             $session->state('AUTHENTICATE-LOGIN');
         }
 
         default {
-            # TODO 535 constant
-            $session->respond(535, "Error: authentication failed: no mechanism available");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: no mechanism available");
         }
     }
 }
@@ -111,7 +125,7 @@ sub authenticate {
                     $username =~ s/\r?\n$//s;
                 };
                 if($@ || !$username) {
-                    $session->respond(535, "Error: authentication failed: another step is needed in authentication");
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
                     $session->log("Auth error: $@");
                     $session->state('ACCEPT');
                     $session->user(undef);
@@ -120,7 +134,7 @@ sub authenticate {
                     return;
                 }
                 $session->stash(username => $username);
-                $session->respond(334, "UGFzc3dvcmQ6");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "UGFzc3dvcmQ6");
             } else {
                 my $password;
                 eval {
@@ -128,7 +142,7 @@ sub authenticate {
                 };
                 $password =~ s/\r?\n$//s;
                 if($@ || !$password) {
-                    $session->respond(535, "Error: authentication failed: another step is needed in authentication");
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
                     $session->log("Auth error: $@");
                     $session->state('ACCEPT');
                     $session->user(undef);
@@ -141,12 +155,12 @@ sub authenticate {
 
                 my $user = $session->smtp->get_user($session->stash('username'), $password);
                 if(!$user) {
-                    $session->respond(535, "LOGIN authentication failed");
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "LOGIN authentication failed");
                     $session->user(undef);
                     delete $session->stash->{username} if $session->stash->{username};
                     delete $session->stash->{password} if $session->stash->{password};
                 } else {
-                    $session->respond(235, "authentication successful");
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_SUCCESSFUL}, "authentication successful");
                     $session->user($user);
                 }
 
@@ -160,14 +174,14 @@ sub authenticate {
                 $decoded = decode_base64($buffer);
             };
             if($@ || !$decoded) {
-                $session->respond(535, "authentication failed: another step is needed in authentication");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
                 $session->user(undef);
                 $session->state('ACCEPT');
                 return;
             }
             my @parts = split /\0/, $decoded;
             if(scalar @parts != 3) {
-                $session->respond(535, "authentication failed: another step is needed in authentication");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
                 $session->user(undef);
                 $session->state('ACCEPT');
                 return;
@@ -186,10 +200,10 @@ sub authenticate {
             my $authed = $session->smtp->get_user($username, $password);
             if(!$authed) {
                 $session->log("Authed: $authed");
-                $session->respond(535, "PLAIN authentication failed");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "PLAIN authentication failed");
                 $session->user(undef);
             } else {
-                $session->respond(235, "authentication successful");
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_SUCCESSFUL}, "authentication successful");
                 $session->user($authed);
             }
             $session->state('ACCEPT');

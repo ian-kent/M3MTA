@@ -13,8 +13,8 @@ sub register {
 	my ($self, $smtp) = @_;
 
 	# Register this RFC
-    if(!$smtp->has_rfc('RFC0821') && !$smtp->has_rfc('RFC5321')) {
-        die "M3MTA::Server::SMTP::RFC1870 requires RFC0821 or RFC5321";
+    if(!$smtp->has_rfc('RFC5321')) {
+        die "M3MTA::Server::SMTP::RFC1870 requires RFC5321";
     }
     $smtp->register_rfc('RFC1870', $self);
 
@@ -64,13 +64,7 @@ sub mail {
     }
 
     # TODO need to get base to handle chained rfc implementations
-    if(my $rfc = $session->smtp->has_rfc('RFC1652')) {
-        return $rfc->mail($session, $data);
-    }
-    if(my $rfc = $session->smtp->has_rfc('RFC5321')) {
-        return $rfc->mail($session, $data);
-    }
-    return $session->smtp->has_rfc('RFC0821')->mail($session, $data);
+    return $session->smtp->has_rfc('RFC5321')->mail($session, $data);
 }
 
 #------------------------------------------------------------------------------
@@ -97,7 +91,7 @@ sub rcpt {
         # return EXCEEDED_STORAGE_ALLOCATION
     }
     
-    return $session->smtp->has_rfc('RFC0821')->rcpt($session, $data);
+    return $session->smtp->has_rfc('RFC5321')->rcpt($session, $data);
 }
 
 #------------------------------------------------------------------------------

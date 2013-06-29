@@ -1,7 +1,7 @@
-package M3MTA::Server::Models::Message;
+package M3MTA::Storage::Message;
 
 =head NAME
-M3MTA::Server::Models::Message - SMTP Message
+M3MTA::Storage::Message - SMTP Message
 =cut
 
 use Modern::Perl;

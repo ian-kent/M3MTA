@@ -3,8 +3,9 @@ package M3MTA::MDA;
 use Moose;
 use Modern::Perl;
 
-use M3MTA::Server::Models::Message;
-use M3MTA::Server::SMTP::Email;
+use M3MTA::Storage::Message;
+use M3MTA::Client::SMTP;
+use M3MTA::Transport::Envelope;
 
 use Mojo::IOLoop;
 use Data::Uniqid qw/ luniqid /;
@@ -20,6 +21,8 @@ use M3MTA::Log;
 
 use M3MTA::Server::Backend::MDA;
 use M3MTA::Server::Backend::SMTP;
+
+use M3MTA::Storage::Mailbox::Message::Content;
 
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
@@ -92,7 +95,7 @@ EOF
 ;
     $msg_data =~ s/\r?\n\./\r\n\.\./gm;
 
-    my $msg = M3MTA::Server::Models::Message->new;
+    my $msg = M3MTA::Storage::Message->new;
     $msg->created($msg_date);
     $msg->status('Pending');
     $msg->data($msg_data);
@@ -188,7 +191,7 @@ sub process_message {
     $message->data($data);
 
     # Turn the email into an object
-    my $content = M3MTA::Server::SMTP::Email->new->from_data($data);
+    my $content = M3MTA::Storage::Mailbox::Message::Content->new->from_data($data);
 
     # Try and send to all recipients
     for my $to (@{$message->to}) {
@@ -233,7 +236,12 @@ sub process_message {
 
             # Attempt to send via SMTP
             my $error = '';
-            my $res = $content->send_smtp($to, \$error);
+            my $envelope = M3MTA::Transport::Envelope->new(
+                from => $message->from,
+                to => $to, # TODO refactor to nicely support multiple to addresses to same host
+                data => $content->to_data,
+            );
+            my $res = M3MTA::Client::SMTP->send($envelope, \$error);
 
             if($res == -1) {
                 # retryable error, so re-queue    

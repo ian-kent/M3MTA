@@ -18,32 +18,44 @@ Log::Log4perl::init(\$conf);
 
 sub trace {
 	shift;
-	Log::Log4perl->get_logger(caller)->trace(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->trace($message);
 }
 
 sub debug {
 	shift;
-	Log::Log4perl->get_logger(caller)->debug(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->debug($message);
 }
 
 sub info {
 	shift;
-	Log::Log4perl->get_logger(caller)->info(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->info($message);
 }
 
 sub warn {
 	shift;
-	Log::Log4perl->get_logger(caller)->warn(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->warn($message);
 }
 
 sub error {
 	shift;
-	Log::Log4perl->get_logger(caller)->error(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->error($message);
 }
 
 sub fatal {
 	shift;
-	Log::Log4perl->get_logger(caller)->fatal(@_);
+	my $message = shift;
+	$message = sprintf($message, @_) if @_;
+	Log::Log4perl->get_logger(caller)->fatal($message);
 }
 
 #------------------------------------------------------------------------------

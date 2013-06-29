@@ -1,11 +1,11 @@
-package M3MTA::Server::Models::Mailbox::Store;
+package M3MTA::Storage::Mailbox::Store;
 
 use Modern::Perl;
 use Moose;
 
-use M3MTA::Server::Models::Mailbox::Folder;
+use M3MTA::Storage::Mailbox::Folder;
 
-has 'children' => ( is => 'rw', isa => 'HashRef[M3MTA::Server::Models::Mailbox::Folder]', default => sub { {} } );
+has 'children' => ( is => 'rw', isa => 'HashRef[M3MTA::Storage::Mailbox::Folder]', default => sub { {} } );
 
 #------------------------------------------------------------------------------
 
@@ -13,7 +13,7 @@ sub from_json {
 	my ($self, $json) = @_;
 
 	for my $child (keys %{$json->{children}}) {
-		$self->children->{$child} = M3MTA::Server::Models::Mailbox::Folder->new(path => $child)->from_json($json->{children}->{$child});
+		$self->children->{$child} = M3MTA::Storage::Mailbox::Folder->new(path => $child)->from_json($json->{children}->{$child});
 	}
 
 	return $self;

@@ -3,7 +3,8 @@ package M3MTA::Server::SMTP::RFC5321;
 use Modern::Perl;
 use Moose;
 
-use M3MTA::Server::Models::Envelope;
+use M3MTA::Transport::Path;
+use M3MTA::Transport::Envelope;
 
 use Data::Uniqid qw/ luniqid /;
 use Date::Format;
@@ -26,7 +27,6 @@ sub register {
 
 	    REQUESTED_MAIL_ACTION_OK                    => 250,
 	    USER_NOT_LOCAL_WILL_FORWARD					=> 251,
-	    # FIXME argument not checked in later RFC?
 	    ARGUMENT_NOT_CHECKED                        => 252,
 
 	    START_MAIL_INPUT                            => 354,
@@ -158,6 +158,7 @@ sub helo {
     }
 
     $session->stash(helo => $data);
+    $session->stash(extended => 0);
 
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK} . " Hello '$data'. I'm", $session->smtp->ident);
 }
@@ -173,6 +174,7 @@ sub ehlo {
     }
 
     $session->stash(helo => $data);
+    $session->stash(extended => 1);
 
     # Everything except last line has - between status and message
 
@@ -204,19 +206,24 @@ sub mail {
     }
 
     # Start a new transaction
-    $session->stash(envelope => M3MTA::Server::Models::Envelope->new);
+    $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
-    if(my ($from, $params) = $data =~ /^From:<([^>]+)>(.*)$/i) {
-        $session->log("Checking user against '$from'");
-        my $r = $session->smtp->can_user_send($session, $from);
+    if(my ($from, $params) = $data =~ /^From:<([^>]*)>(.*)$/i) {
+        my $path = M3MTA::Transport::Path->new->from_json($from);
+        if($path->null) {
+            M3MTA::Log->debug("Message has null reverse-path");
+        } else {
+            $session->log("Checking user against '$path'");
+            my $r = $session->smtp->can_user_send($session, $path);
 
-        if(!$r) {
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
+            if(!$r) {
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
+                return;
+            }
+            $session->stash('envelope')->from($path);
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$path sender ok");
             return;
         }
-        $session->stash('envelope')->from($from);
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$from sender ok");
-        return;
     }
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
 }
@@ -236,14 +243,13 @@ sub rcpt {
     }
 
     if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
-        M3MTA::Log->debug("Checking delivery for $recipient");
+        my $path = M3MTA::Transport::Path->new->from_json($recipient);
+        M3MTA::Log->debug("Checking delivery for $path");
 
-        if($recipient =~ /^postmaster$/i) {
-            M3MTA::Log->debug("Auto-accepting, address is reserved postmaster with no domain");
-        } elsif (my ($r, $d) = $recipient =~ /^postmaster@(.*)$/i) {
-            M3MTA::Log->debug("Auto-accepting, address is reserved postmaster for domain $d");
+        if($path->postmaster) {
+            M3MTA::Log->debug("Auto-accepting, address is reserved postmaster");
         } else {
-            my $r = $session->smtp->can_accept_mail($session, $recipient);
+            my $r = $session->smtp->can_accept_mail($session, $path);
 
             if($r == $M3MTA::Server::Backend::SMTP::REJECTED) {
                 M3MTA::Log->debug("Delivery rejected");
@@ -266,7 +272,7 @@ sub rcpt {
             }
         }
 
-        push @{$session->stash('envelope')->to}, $recipient;
+        push @{$session->stash('envelope')->to}, $path;
         M3MTA::Log->debug("Delivery accepted");
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
         return;
@@ -339,7 +345,7 @@ sub data {
         # Store the data
         $session->stash('envelope')->data($newdata . $data);
 
-        my $email = M3MTA::Server::Models::Message->new->from_json($session->stash('envelope')->to_json);
+        my $email = M3MTA::Storage::Message->new->from_json($session->stash('envelope')->to_json);
         $email->id($message_id);
         $session->respond($session->smtp->queue_message($email));
 

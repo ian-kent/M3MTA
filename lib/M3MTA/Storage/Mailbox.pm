@@ -1,18 +1,18 @@
-package M3MTA::Server::Models::Mailbox::Size;
+package M3MTA::Storage::Mailbox;
 
 use Modern::Perl;
 use Moose;
 
-has 'current' => ( is => 'rw', isa => 'Int' );
-has 'maximum' => ( is => 'rw', isa => 'Int' );
+has 'domain' => ( is => 'rw', isa => 'Str' );
+has 'mailbox' => ( is => 'rw', isa => 'Str' );
 
 #------------------------------------------------------------------------------
 
 sub from_json {
 	my ($self, $json) = @_;
 
-	$self->current($json->{current});
-	$self->maximum($json->{maximum});
+	$self->domain($json->{domain});
+	$self->mailbox($json->{mailbox});
 
 	return $self;
 }
@@ -23,8 +23,8 @@ sub to_json {
 	my ($self) = @_;
 
 	return {
-		current => $self->current,
-		maximum => $self->maximum,
+		domain => $self->domain,
+		mailbox => $self->mailbox,
 	};
 }
 

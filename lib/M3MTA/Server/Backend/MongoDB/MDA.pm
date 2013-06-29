@@ -6,11 +6,10 @@ extends 'M3MTA::Server::Backend::MDA', 'M3MTA::Server::Backend::MongoDB';
 use Data::Dumper;
 use DateTime;
 use DateTime::Duration;
-use M3MTA::Server::SMTP::Email;
 use Tie::IxHash;
 
 use M3MTA::Server::Backend::MongoDB::Util;
-use M3MTA::Server::Models::Message;
+use M3MTA::Storage::Message;
 use M3MTA::Log;
 use MongoDB::OID;
 
@@ -99,7 +98,7 @@ override 'poll' => sub {
 
     return undef if !$result->{value};
     
-    return M3MTA::Server::Models::Message->new->from_json($result->{value});
+    return M3MTA::Storage::Message->new->from_json($result->{value});
 };
 
 #------------------------------------------------------------------------------
@@ -141,7 +140,7 @@ override 'requeue' => sub {
 
         $email->delivery_time($rq_date);
         $email->requeued(int($email->{requeued}) + 1);
-        push $email->attempts, M3MTA::Server::Models::Message::Attempt->new(
+        push $email->attempts, M3MTA::Storage::Message::Attempt->new(
             date => DateTime->now,
             error => $error,
         );

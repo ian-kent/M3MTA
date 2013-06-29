@@ -1,18 +1,16 @@
-package M3MTA::Server::Models::Mailbox;
+package M3MTA::Storage::Mailbox::Delivery;
 
 use Modern::Perl;
 use Moose;
 
-has 'domain' => ( is => 'rw', isa => 'Str' );
-has 'mailbox' => ( is => 'rw', isa => 'Str' );
+has 'path' => ( is => 'rw', isa => 'Str' );
 
 #------------------------------------------------------------------------------
 
 sub from_json {
 	my ($self, $json) = @_;
 
-	$self->domain($json->{domain});
-	$self->mailbox($json->{mailbox});
+	$self->path($json->{path});
 
 	return $self;
 }
@@ -23,8 +21,7 @@ sub to_json {
 	my ($self) = @_;
 
 	return {
-		domain => $self->domain,
-		mailbox => $self->mailbox,
+		path => $self->path,
 	};
 }
 

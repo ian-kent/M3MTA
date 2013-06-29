@@ -1,4 +1,4 @@
-package M3MTA::Server::Models::Domain;
+package M3MTA::Storage::Domain;
 
 use Modern::Perl;
 use Moose;

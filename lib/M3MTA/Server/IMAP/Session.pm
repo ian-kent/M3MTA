@@ -45,12 +45,11 @@ sub stash {
 
 sub log {
 	my $self = shift;
-	return if !$self->imap->debug;
 
 	my $message = shift;
 	$message = '[SESSION %s] ' . $message;
 
-	$self->imap->log($message, $self->id, @_);
+	M3MTA::Log->debug($message, $self->id, @_);
 }
 
 #------------------------------------------------------------------------------

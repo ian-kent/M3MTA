@@ -5,10 +5,9 @@ use Moose;
 extends 'M3MTA::Server::Backend::IMAP', 'M3MTA::Server::Backend::MongoDB';
 
 use Data::Dumper;
-use M3MTA::Server::SMTP::Email;
 use M3MTA::Log;
 
-use M3MTA::Server::Models::Mailbox::Message;
+use M3MTA::Storage::Mailbox::Message;
 
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
@@ -62,7 +61,7 @@ override 'append_message' => sub {
     M3MTA::Log->debug("Storing message to path [$path]");
 
     # Make the message for the store
-    my $email = M3MTA::Server::Models::Mailbox::Message::Content->new->from_data($content);    
+    my $email = M3MTA::Storage::Mailbox::Message::Content->new->from_data($content);    
     M3MTA::Log->debug(Dumper $email);
 
     my @flgs = split /\s/, $flags;
@@ -98,7 +97,7 @@ override 'fetch_messages' => sub {
 	my @messages = $self->store->find($query)->all;
 
     my @msgs = map { 
-        M3MTA::Server::Models::Mailbox::Message->new->from_json($_);
+        M3MTA::Storage::Mailbox::Message->new->from_json($_);
     } @messages;
 
     print Dumper \@messages;

@@ -1,16 +1,18 @@
-package M3MTA::Server::Models::Mailbox::Delivery;
+package M3MTA::Storage::Mailbox::Size;
 
 use Modern::Perl;
 use Moose;
 
-has 'path' => ( is => 'rw', isa => 'Str' );
+has 'current' => ( is => 'rw', isa => 'Int' );
+has 'maximum' => ( is => 'rw', isa => 'Int' );
 
 #------------------------------------------------------------------------------
 
 sub from_json {
 	my ($self, $json) = @_;
 
-	$self->path($json->{path});
+	$self->current($json->{current});
+	$self->maximum($json->{maximum});
 
 	return $self;
 }
@@ -21,7 +23,8 @@ sub to_json {
 	my ($self) = @_;
 
 	return {
-		path => $self->path,
+		current => $self->current,
+		maximum => $self->maximum,
 	};
 }
 

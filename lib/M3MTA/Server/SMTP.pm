@@ -9,20 +9,16 @@ use Moose;
 extends 'M3MTA::Server::Base';
 
 use M3MTA::Server::SMTP::Session;
-use M3MTA::Server::SMTP::RFC5321;
 
-#use M3MTA::Server::SMTP::RFC0821;
-#use M3MTA::Server::SMTP::RFC1652;
-#use M3MTA::Server::SMTP::RFC1869;
-use M3MTA::Server::SMTP::RFC1870;
-#use M3MTA::Server::SMTP::RFC2821;
-use M3MTA::Server::SMTP::RFC2554;
-use M3MTA::Server::SMTP::RFC2487;
+use M3MTA::Server::SMTP::RFC5321; # Basic/Extended SMTP
+use M3MTA::Server::SMTP::RFC1870; # SIZE extension
+use M3MTA::Server::SMTP::RFC2487; # STARTTLS extension
+use M3MTA::Server::SMTP::RFC2554; # AUTH extension
 
 #------------------------------------------------------------------------------
 
 our %ReplyCodes = ();
-has 'helo' => ( is => 'rw' );
+has 'helo' => ( is => 'rw', isa => 'ArrayRef', default => sub { [] } );
 
 #------------------------------------------------------------------------------
 
@@ -30,14 +26,10 @@ sub BUILD {
     my ($self) = @_;
 
     # Initialise RFCs
-    #M3MTA::Server::SMTP::RFC0821->new->register($self); # Basic SMTP
-    M3MTA::Server::SMTP::RFC5321->new->register($self); # Basic SMTP
-    #M3MTA::Server::SMTP::RFC1652->new->register($self); # 8BITMIME
-    #M3MTA::Server::SMTP::RFC1869->new->register($self); # Extension format
-    M3MTA::Server::SMTP::RFC1870->new->register($self); # SIZE
-    M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS
-    M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH
-    #M3MTA::Server::SMTP::RFC2821->new->register($self); # Extended SMTP    
+    M3MTA::Server::SMTP::RFC5321->new->register($self); # Basic/Extended SMTP
+    M3MTA::Server::SMTP::RFC1870->new->register($self); # SIZE extension
+    M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS extension
+    M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH extension
 }
 
 #------------------------------------------------------------------------------
@@ -46,7 +38,7 @@ sub BUILD {
 sub accept {
     my ($self, $server, $loop, $stream, $id) = @_;
 
-    $self->log("Session accepted with id %s", $id);
+    M3MTA::Log->debug("Session accepted with id %s", $id);
 
     M3MTA::Server::SMTP::Session->new(
         smtp => $self, 
@@ -67,9 +59,11 @@ sub register_replycode {
 
     if(ref($name) =~ /HASH/) {
         for my $n (keys %$name) {
+            M3MTA::Log->debug("Registered replycode %s => %s", $n, $name->{$n});
             $M3MTA::Server::SMTP::ReplyCodes{$n} = $name->{$n};
         }
     } else {
+        M3MTA::Log->debug("Registered replycode %s => %s", $name, $code);
         $M3MTA::Server::SMTP::ReplyCodes{$name} = $code;
     }
 }
@@ -80,7 +74,8 @@ sub register_replycode {
 sub register_helo {
     my ($self, $callback) = @_;
     
-    $self->helo([]) if !$self->helo;    
+    M3MTA::Log->debug("Registered callback for helo");
+    
     push $self->helo, $callback;
 }
 

@@ -7,9 +7,9 @@ use MIME::Base64 qw/ decode_base64 encode_base64 /;
 use Data::Dumper;
 use M3MTA::Log;
 
-use M3MTA::Server::Models::Mailbox;
-use M3MTA::Server::Models::Mailbox::Alias;
-use M3MTA::Server::Models::Mailbox::Local;
+use M3MTA::Storage::Mailbox;
+use M3MTA::Storage::Mailbox::Alias;
+use M3MTA::Storage::Mailbox::Local;
 
 # Collections
 has 'queue'     => ( is => 'rw' );

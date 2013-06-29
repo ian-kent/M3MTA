@@ -4,7 +4,7 @@ use Modern::Perl;
 use Moose;
 
 use Data::Dumper;
-use M3MTA::Server::Models::Message;
+use M3MTA::Storage::Message;
 
 #------------------------------------------------------------------------------
 
@@ -41,12 +41,33 @@ sub stash {
 
 sub log {
 	my $self = shift;
-	return if !$self->smtp->debug;
-
+	
 	my $message = shift;
 	$message = '[SESSION %s] ' . $message;
 
-	$self->smtp->log($message, $self->id, @_);
+	M3MTA::Log->debug($message, $self->id, @_);
+}
+
+#------------------------------------------------------------------------------
+
+sub trace {
+    my $self = shift;
+    
+    my $message = shift;
+    $message = '[SESSION %s] ' . $message;
+
+    M3MTA::Log->trace($message, $self->id, @_);
+}
+
+#------------------------------------------------------------------------------
+
+sub error {
+    my $self = shift;
+    
+    my $message = shift;
+    $message = '[SESSION %s] ' . $message;
+
+    M3MTA::Log->error($message, $self->id, @_);
 }
 
 #------------------------------------------------------------------------------
@@ -57,7 +78,8 @@ sub respond {
     my $c = join ' ', @cmd;
 
     $self->stream->write("$c\n");
-    $self->log("[SENT] %s", $c);
+
+    $self->trace("[SENT] %s", $c);
 
     return;
 }
@@ -82,10 +104,10 @@ sub begin {
 
     $self->stream->on(error => sub {
     	my ($stream, $error) = @_;
-        $self->log("Stream error: %s", $error);
+        $self->error("Stream error: %s", $error);
     });
     $self->stream->on(close => sub {
-        $self->log("Stream closed");
+        $self->error("Stream closed");
     });
     $self->stream->on(read => sub {
         my ($stream, $chunk) = @_;
@@ -103,7 +125,7 @@ sub begin {
 sub receive {
 	my ($self) = @_;
 
-	$self->log("[RECD] %s", $self->buffer);
+	$self->trace("[RECD] %s", $self->buffer);
 
     # Check if we have a state hook
     for my $ar (@{$self->smtp->states}) {

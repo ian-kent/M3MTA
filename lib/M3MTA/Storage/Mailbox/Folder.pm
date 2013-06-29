@@ -1,4 +1,4 @@
-package M3MTA::Server::Models::Mailbox::Folder;
+package M3MTA::Storage::Mailbox::Folder;
 
 use Modern::Perl;
 use Moose;

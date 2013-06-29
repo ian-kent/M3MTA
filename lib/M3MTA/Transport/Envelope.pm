@@ -1,12 +1,12 @@
-package M3MTA::Server::Models::Envelope;
+package M3MTA::Transport::Envelope;
 
 use Modern::Perl;
 use Moose;
 
 #------------------------------------------------------------------------------
 
-has 'from' => ( is => 'rw', isa => 'Str' );
-has 'to' => ( is => 'rw', isa => 'ArrayRef', default => sub { [] } );
+has 'from' => ( is => 'rw', isa => 'M3MTA::Transport::Path' );
+has 'to' => ( is => 'rw', isa => 'ArrayRef[M3MTA::Transport::Path]', default => sub { [] } );
 has 'data' => ( is => 'rw', isa => 'Str' );
 
 #------------------------------------------------------------------------------
@@ -24,9 +24,13 @@ sub from_json {
 sub to_json {
 	my ($self) = @_;
 
+	my @to;
+	for my $t (@{$self->to}) {
+		push @to, $t->to_json;
+	}
 	return {
-		from => $self->from,
-		to => $self->to,
+		from => $self->from->to_json,
+		to => \@to,
 		data => $self->data,
 	};
 }

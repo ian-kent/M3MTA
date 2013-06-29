@@ -1,18 +1,20 @@
-package M3MTA::Server::SMTP::Email;
+package M3MTA::Client::SMTP;
 
-use Data::Dumper;
 use Modern::Perl;
 use Moose;
-extends 'M3MTA::Server::Models::Mailbox::Message::Content';
 
+use Data::Dumper;
 use Net::DNS::Resolver;
 use M3MTA::Log;
 
 #------------------------------------------------------------------------------
 
 sub send_smtp {
-	my ($self, $to, $error) = @_;
+	my ($self, $envelope, $error) = @_;
     
+    # TODO support multiple recipients
+	my $to = $envelope->to->[0];
+
 	M3MTA::Log->debug("Relaying message to: $to");
     my ($user, $domain) = $to =~ /(.*)@(.*)/;
 
@@ -92,9 +94,8 @@ sub send_smtp {
 	                print $socket "EHLO $hostname\r\n";
 	                $state = 'ehlo';
 	            } elsif ($state eq 'ehlo') {
-	                my ($name, $from) = $self->headers->{From} =~ /(.*)?<(.*)>/;
-	                M3MTA::Log->trace("SENT: MAIL FROM:<$from>");
-	                print $socket "MAIL FROM:<$from>\r\n";
+	                M3MTA::Log->trace("SENT: MAIL FROM:<" . $envelope->from . ">");
+	                print $socket "MAIL FROM:<" . $envelope->from . ">\r\n";
 	                $state = 'mail';
 	            } elsif ($state eq 'mail') {
 	                M3MTA::Log->trace("SENT: RCPT TO:<$to>");
@@ -105,16 +106,11 @@ sub send_smtp {
 	                print $socket "DATA\r\n";
 	                $state = 'data';
 	            } elsif ($state eq 'data') {
-	                for my $hdr (keys %{$self->headers}) {
-	                    M3MTA::Log->trace("SENT: " . $hdr . ": " . $self->headers->{$hdr});
-	                    print $socket $hdr . ": " . $self->headers->{$hdr} . "\r\n";
-	                }
-	                print $socket "\r\n";
-	                my $msg = $self->body;
-	                # rfc0821 4.5.2 transparency
-	                $msg =~ s/\n\./\n\.\./s;
-	                print $socket $msg;
-	                M3MTA::Log->trace("SENT: " . $msg);
+	            	my $data = $envelope->data;
+	            	# rfc0821 4.5.2 transparency
+	            	$data =~ s/\n\./\n\.\./s;	                
+	                print $socket $data;
+	                M3MTA::Log->trace("[SENT] " . $data);
 	                print $socket "\r\n.\r\n";
 	                $state = 'done';
 	            } elsif ($state eq 'done') {

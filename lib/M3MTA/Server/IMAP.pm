@@ -29,6 +29,12 @@ sub BUILD {
     M3MTA::Server::IMAP::State::Selected->new->register($self);
     M3MTA::Server::IMAP::State::Any->new->register($self);
 }
+
+sub log {
+    shift;
+    M3MTA::Log->debug(@_);
+}
+
 #------------------------------------------------------------------------------
 
 # Handles new connections from M3MTA::Server::Base

@@ -4,7 +4,6 @@ use Moose;
 use Modern::Perl;
 use Data::Dumper;
 use M3MTA::Log;
-use M3MTA::Server::SMTP::Email;
 
 has 'mda' => ( is => 'rw', required => 1 );
 

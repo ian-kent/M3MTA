@@ -10,11 +10,11 @@ use M3MTA::Server::Backend::SMTP;
 use M3MTA::Server::Backend::IMAP;
 use M3MTA::Server::Backend::MDA;
 # Models
-use M3MTA::Server::Models::Domain;
-use M3MTA::Server::Models::Mailbox;
-use M3MTA::Server::Models::Mailbox::Alias;
-use M3MTA::Server::Models::Mailbox::Local;
-use M3MTA::Server::Models::Mailbox::Message;
+use M3MTA::Storage::Domain;
+use M3MTA::Storage::Mailbox;
+use M3MTA::Storage::Mailbox::Alias;
+use M3MTA::Storage::Mailbox::Local;
+use M3MTA::Storage::Mailbox::Message;
 
 has 'backend' => ( is => 'rw', required => 1 );
 
@@ -28,7 +28,7 @@ sub get_domain {
 	my $d = $self->domains->find_one({domain => $domain});
 	return undef if !$d;
 
-	return M3MTA::Server::Models::Domain->new->from_json($d);
+	return M3MTA::Storage::Domain->new->from_json($d);
 }
 
 #------------------------------------------------------------------------------
@@ -41,10 +41,10 @@ sub get_user {
 
     if($mailbox && $mailbox->{destination}) {
         M3MTA::Log->debug("Mailbox is alias");
-        return M3MTA::Server::Models::Mailbox::Alias->new->from_json($mailbox);
+        return M3MTA::Storage::Mailbox::Alias->new->from_json($mailbox);
     } elsif ($mailbox) {
         M3MTA::Log->debug("Mailbox is local");
-        return M3MTA::Server::Models::Mailbox::Local->new->from_json($mailbox);
+        return M3MTA::Storage::Mailbox::Local->new->from_json($mailbox);
     }
 
     M3MTA::Log->debug("Mailbox not found");
@@ -72,12 +72,12 @@ sub get_mailbox {
             M3MTA::Log->debug("Alias refers to local mailbox");
         } else {
             M3MTA::Log->debug("Alias points to external address");
-            return M3MTA::Server::Models::Mailbox::Alias->new->from_json($alias_mb);
+            return M3MTA::Storage::Mailbox::Alias->new->from_json($alias_mb);
         }
     }
 
     if($mailbox) {
-		return M3MTA::Server::Models::Mailbox::Local->new->from_json($mailbox);
+		return M3MTA::Storage::Mailbox::Local->new->from_json($mailbox);
 	}
 
 	return undef;
@@ -111,10 +111,10 @@ sub add_to_mailbox {
     my %flag_map = map { $_ => 1 } @$flags;
 
     # Make the message for the store
-    my $msg = M3MTA::Server::Models::Mailbox::Message->new;
+    my $msg = M3MTA::Storage::Mailbox::Message->new;
     $msg->uid($mailbox->store->children->{$path}->nextuid);
     $msg->content($email);
-    $msg->mailbox(M3MTA::Server::Models::Mailbox->new->from_json($mailbox->to_json));
+    $msg->mailbox(M3MTA::Storage::Mailbox->new->from_json($mailbox->to_json));
     $msg->path($path);
     $msg->flags($flags);
 
