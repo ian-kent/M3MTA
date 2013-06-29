@@ -229,8 +229,8 @@ sub uid_fetch {
     $session->log("Got RANGES [" . (Dumper \%ranges) . "], ARGS: $params");
 
     my $query = {
-        "mailbox.domain" => $session->auth->{user}->{domain},
-        "mailbox.user" => $session->auth->{user}->{mailbox},
+        "mailbox.domain" => $session->auth->domain,
+        "mailbox.mailbox" => $session->auth->mailbox,
         "path" => $session->selected,
     };
 
@@ -260,47 +260,29 @@ sub uid_fetch {
     print Dumper $messages;
 
    	foreach my $email (@$messages) {   
-
-   		my $response = "* " . $email->{uid} . " FETCH (UID " . $email->{uid} . " ";
+        # TODO should be sequence not uid for first number?
+   		my $response = "* " . $email->uid . " FETCH (UID " . $email->uid . " ";
    		my $extra = '';
 
         if($pmap->{'FLAGS'}) {
-            my $flags = "";
-            print Dumper $email->{flags};
-            for my $flag (@{$email->{flags}}) {
-            	next if $flag =~ /^\s*$/;
-                $flags .= "$flag ";
-            }
-            $response .= "FLAGS ($flags) ";
+            print Dumper $email->flags;
+            $response .= "FLAGS (" . (join ' ', @{$email->flags}) . ") ";
         } 
 
         if($pmap->{'RFC822.SIZE'}) {
-        	$response .= 'RFC822.SIZE '.$email->{message}->{size}.' ';
+        	$response .= 'RFC822.SIZE '.$email->content->size.' ';
         }
 
         if($pmap->{'BODYSTRUCTURE'}) {
-        	$session->log("Content-Type: %s", $email->{message}->{headers}->{'Content-Type'});
-        	my ($mime, $charset) = $email->{message}->{headers}->{'Content-Type'} =~ /([\w\/]+);(\scharset=([\w\d\.\-]+);)?/;
+        	$session->log("Content-Type: %s", $email->content->headers->{'Content-Type'});
+        	my ($mime, $charset) = $email->content->headers->{'Content-Type'} =~ /([\w\/]+);(\scharset=([\w\d\.\-]+);)?/;
         	$session->log("Got mime [%s], charset [%s]", $mime, $charset);
         	my @mtype = split /\//, uc $mime;
         	$response .= 'BODYSTRUCTURE (';
         	$response .= '"' . $mtype[0] . '" "' . $mtype[1] . '" ("CHARSET" "UTF-8")';
-        	my @bodylines = split /\r\n/m, $email->{message}->{body};
-        	my $lines = (scalar keys %{$email->{message}->{headers}}) + (scalar @bodylines) ;
-        	my $len = 0;
-        	for my $hdr (keys %{$email->{message}->{headers}}) {
-        		my $h = $email->{message}->{headers}->{$hdr};
-        		my $ht = '';
-        		if(ref $h =~ /ARRAY/) {
-                    for my $i (@$h) {
-                        $ht .= $hdr . ': ' . $i . "\r\n";
-                    }
-                } else {
-                    $ht .= $hdr . ': ' . $h . "\r\n";
-                }
-        		$len += length($ht);
-        	}
-        	$len += length($email->{message}->{body});
+        	my @bodylines = split /\r\n/m, $email->content->body;
+        	my $lines = (scalar keys %{$email->content->headers}) + (scalar @bodylines) ;
+        	my $len = $email->content->size;
         	$response .= ' NIL NIL "7BIT" ' . $lines . ' ' . $len . ')';
         }
 
@@ -308,9 +290,9 @@ sub uid_fetch {
             # BODY[HEADER.FIELDS ("From" "To" "Cc" "Bcc" "Subject" "Date" "Message-ID" "Priority" "X-Priority" "References" "Newsgroups" "In-Reply-To" "Content-Type")] {306}
             if($pmap->{'BODY.PEEK'}->{'HEADER.FIELDS'}) {
             	my @list;
-				for my $hdr (keys %{$email->{message}->{headers}}) {
+				for my $hdr (keys %{$email->content->headers}) {
 					push @list, $hdr;
-                    my $h = $email->{message}->{headers}->{$hdr};
+                    my $h = $email->content->headers->{$hdr};
                     if(ref $h =~ /ARRAY/) {
                         for my $i (@$h) {
                             $extra .= $hdr . ': ' . $i . "\r\n";
@@ -328,8 +310,8 @@ sub uid_fetch {
         }
 
 		if ($pmap->{'BODY'} || $pmap->{'RFC822'}) {               
-            for my $hdr (keys %{$email->{message}->{headers}}) {
-                my $h = $email->{message}->{headers}->{$hdr};
+            for my $hdr (keys %{$email->content->headers}) {
+                my $h = $email->content->headers->{$hdr};
                 if(ref $h =~ /ARRAY/) {
                     for my $i (@$h) {
                         $extra .= $hdr . ': ' . $i . "\r\n";
@@ -338,7 +320,7 @@ sub uid_fetch {
                     $extra .= $hdr . ': ' . $h . "\r\n";
                 }
             }
-            $extra .= "\r\n" . $email->{message}->{body} . "\r\n";
+            $extra .= "\r\n" . $email->content->body . "\r\n";
             if($pmap->{'BODY'}) {
             	$response .= 'BODY[] ';
         	} else {

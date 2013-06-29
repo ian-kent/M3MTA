@@ -13,7 +13,7 @@ sub from_json {
 	my ($self, $json) = @_;
 
 	for my $child (keys %{$json->{children}}) {
-		$self->children->{$child} = M3MTA::Server::Models::Mailbox::Folder->new->from_json($json->{children}->{$child});
+		$self->children->{$child} = M3MTA::Server::Models::Mailbox::Folder->new(path => $child)->from_json($json->{children}->{$child});
 	}
 
 	return $self;

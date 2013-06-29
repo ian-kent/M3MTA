@@ -45,12 +45,21 @@ sub select {
 
 	my ($path) = $data =~ /"(.*)"/;
 
-	my $result = $session->imap->select_folder($session, $path, $read_write);
+	my $mailbox = $session->imap->get_mailbox($session->auth->mailbox, $session->auth->domain);
+	my $folder = $mailbox->store->children->{$path};
 	
-	if($result) {
-		for my $data (@$result) {
-			$session->respond('*', $data);
-		}
+	if($folder) {
+        my $permflags = '\Deleted \Seen \*';
+        my $storeflags = '\Unseen \Seen \Recent'; # think this is flags used by the current mailbox?
+        my $validity = $mailbox->validity->{$path} // 1;
+
+        $session->respond('*', $folder->exists . ' EXISTS');
+        $session->respond('*', $folder->recent . ' RECENT');
+        $session->respond('*', 'OK [UNSEEN ' . $folder->unseen . ']');
+        $session->respond('*', "OK [UIDVALIDITY $validity]");
+        $session->respond('*', "OK [UIDNEXT " . $folder->nextuid . "]");
+        $session->respond('*', "FLAGS ($storeflags)");
+        $session->respond('*', "OK [PERMANENTFLAGS ($permflags)");
 
 		$session->respond($id, "OK [$read_write] $cmd completed");
         $session->selected($path);
@@ -132,7 +141,7 @@ sub subscribe {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	$session->imap->subscribe_folder($path);
+	$session->imap->subscribe_folder($session, $path);
 
 	$session->respond($id, 'OK', 'SUBSCRIBE successful');
 
@@ -146,7 +155,7 @@ sub unsubscribe {
 
 	my ($path) = $data =~ /^"(.*)"$/;
 
-	$session->imap->unsubscribe_folder($path);
+	$session->imap->unsubscribe_folder($session, $path);
 
 	$session->respond($id, 'OK', 'UNSUBSCRIBE successful');
 
@@ -164,13 +173,20 @@ sub list {
 
 	$mailbox = '' if $mailbox eq '*';
 
-	my $result = $session->imap->fetch_folders($session, $ref, $mailbox);
-	if($result) {
-		for my $folder (@$result) {
-			$session->respond('*', 'LIST (' . $folder->{flags} . ') "' . $session->imap->config->{field_separator} . '"', $folder->{path});
-		}
+	my $mbox = $session->imap->get_mailbox($session->auth->mailbox, $session->auth->domain);
+	my $re = qr/$mailbox/;
+	for my $path (keys %{$mbox->store->children}) {
+		next if $path !~ $re;
+
+		my $folder = $mbox->store->children->{$path};
+		$session->respond(
+			'*',
+			'LIST (' . (join ' ', @{$folder->flags}) . ')',
+			'"' . $session->imap->config->{field_separator} . '"',
+			$folder->path,
+		);
 	}
-    
+
     $session->respond($id, 'OK');
 
 	return 1;
@@ -189,11 +205,17 @@ sub lsub {
 
 	$mailbox = '' if $mailbox eq '*';
 
-	my $result = $session->imap->fetch_folders($session, $ref, $mailbox, 1);
-	if($result) {
-		for my $folder (@$result) {
-			$session->respond('*', 'LSUB (' . $folder->{flags} . ') "' . $session->imap->config->{field_separator} . '"', $folder->{path});
-		}
+	my $mbox = $session->imap->get_mailbox($session->auth->mailbox, $session->auth->domain);
+	for my $path (keys %{$mbox->store->children}) {
+		next if !$mbox->subscriptions->{$path};
+
+		my $folder = $mbox->store->children->{$path};
+		$session->respond(
+			'*',
+			'LIST (' . (join ' ', @{$folder->flags}) . ')',
+			'"' . $session->imap->config->{field_separator} . '"',
+			$folder->path,
+		);
 	}
 
     $session->respond($id, 'OK');
@@ -225,7 +247,13 @@ sub append {
 		$content .= $session->buffer;
 		$session->buffer('');
 
-		if($content =~ /\r\n\r\n$/) {
+		my $newcontent = $content;
+		$newcontent =~ s/\r/<CR>/g;
+		$newcontent =~ s/\n/<LF>/g;
+		print "[[[[[\n$newcontent\n]]]]]\n";
+		print "CURRENT LEN: " . length($content) . "; WAITING FOR $len\n";
+
+		if(length $content >= $len) {
 			$session->log("All data for message received");
 			$session->receive_hook(undef);
 

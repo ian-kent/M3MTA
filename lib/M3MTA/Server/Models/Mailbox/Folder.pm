@@ -3,10 +3,28 @@ package M3MTA::Server::Models::Mailbox::Folder;
 use Modern::Perl;
 use Moose;
 
+has 'path' => ( is => 'rw', isa => 'Str', required => 1 );
+
 has 'seen' => ( is => 'rw', isa => 'Int' );
 has 'unseen' => ( is => 'rw', isa => 'Int' );
 has 'recent' => ( is => 'rw', isa => 'Int' );
 has 'nextuid' => ( is => 'rw', isa => 'Int' );
+
+#------------------------------------------------------------------------------
+
+sub exists {
+	my ($self) = @_;
+
+	return $self->seen + $self->unseen;
+}
+
+#------------------------------------------------------------------------------
+
+sub flags {
+	my ($self) = @_;
+	# TODO
+	return ["\\HasNoChildren"];
+}
 
 #------------------------------------------------------------------------------
 

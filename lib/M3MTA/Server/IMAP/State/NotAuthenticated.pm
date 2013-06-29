@@ -75,15 +75,11 @@ sub login {
 	my ($username, $password) = $data =~ /"(.*)"\s"(.*)"/; # TODO quotes not always provided
     my $user = $session->imap->get_user($username, $password);
     if($user) {
-        $session->auth({});
-        $session->auth->{success} = 1;
-        $session->auth->{username} = $username;
-        $session->auth->{password} = $password;
-        $session->auth->{user} = $user;
+        $session->auth($user);
         $session->respond($id, 'OK', '[CAPABILITY IMAP4REV1] User authenticated');
         $session->state('Authenticated');
     } else {
-        $session->auth({});
+        $session->auth(undef);
         $session->respond($id, 'BAD', '[CAPABILITY IMAP4REV1] User authentication failed');
     }
 

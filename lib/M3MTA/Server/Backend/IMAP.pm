@@ -13,6 +13,14 @@ sub get_user {
 
 #------------------------------------------------------------------------------
 
+sub get_mailbox {
+    my ($self, $mailbox, $domain) = @_;
+
+    die("get_mailbox not implemented by backend");   
+}
+
+#------------------------------------------------------------------------------
+
 sub append_message {
     my ($self, $session, $mailbox, $flags, $content) = @_;
 
@@ -61,7 +69,7 @@ sub select_folder {
 
 #------------------------------------------------------------------------------
 
-sub subcribe_folder {
+sub subscribe_folder {
 	my ($self, $session, $path) = @_;
 
 	die("subscribe_folder not implemented by backend");

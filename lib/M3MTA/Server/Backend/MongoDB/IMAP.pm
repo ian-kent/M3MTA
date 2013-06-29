@@ -8,6 +8,8 @@ use Data::Dumper;
 use M3MTA::Server::SMTP::Email;
 use M3MTA::Log;
 
+use M3MTA::Server::Models::Mailbox::Message;
+
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
 # Collections
@@ -36,12 +38,20 @@ after 'init_db' => sub {
 
 override 'get_user' => sub {
     my ($self, $username, $password) = @_;
+    
     print "User auth for username [$username] with password [$password]\n";
 
-    my $user = $self->mailboxes->find_one({username => $username, password => $password});
-    print "Error: $@\n" if $@;
+    return $self->util->get_user($username, $password);
+};
 
-    return $user;
+#------------------------------------------------------------------------------
+
+override 'get_mailbox' => sub {
+    my ($self, $mailbox, $domain) = @_;
+    
+    M3MTA::Log->debug("Getting mailbox for $mailbox\@$domain");
+
+    return $self->util->get_mailbox($mailbox, $domain);
 };
 
 #------------------------------------------------------------------------------
@@ -52,7 +62,7 @@ override 'append_message' => sub {
     M3MTA::Log->debug("Storing message to path [$path]");
 
     # Make the message for the store
-    my $email = M3MTA::Server::SMTP::Email->from_data($content);    
+    my $email = M3MTA::Server::Models::Mailbox::Message::Content->new->from_data($content);    
     M3MTA::Log->debug(Dumper $email);
 
     my @flgs = split /\s/, $flags;
@@ -61,16 +71,16 @@ override 'append_message' => sub {
     M3MTA::Log->debug("Setting flags: " . (join ', ', @flgs));
 
     my $mailbox = $self->util->get_mailbox(
-        $session->auth->{user}->{mailbox},
-        $session->auth->{user}->{domain}
+        $session->auth->mailbox,
+        $session->auth->domain,
     );
 
     use Data::Dumper;
     M3MTA::Log->debug("Loaded mailbox:\n%s", (Dumper $mailbox));
 
     return $self->util->add_to_mailbox(
-        $session->auth->{user}->{mailbox},
-        $session->auth->{user}->{domain},
+        $session->auth->mailbox,
+        $session->auth->domain,
         $mailbox,
         $email,
         $path,
@@ -83,11 +93,18 @@ override 'append_message' => sub {
 override 'fetch_messages' => sub {
 	my ($self, $session, $query) = @_;
 
+    # Note - we just use a JSON query here, its probably
+    # the easiest way to describe an IMAP query anyway
 	my @messages = $self->store->find($query)->all;
 
-	# TODO turn into objects
+    my @msgs = map { 
+        M3MTA::Server::Models::Mailbox::Message->new->from_json($_);
+    } @messages;
 
-	return \@messages;
+    print Dumper \@messages;
+    print Dumper \@msgs;
+
+	return \@msgs;
 };
 
 #------------------------------------------------------------------------------
@@ -97,9 +114,9 @@ override 'create_folder' => sub {
 
 	# Get mailbox
 	my $mboxid = {
-		mailbox => $session->auth->{user}->{mailbox},
-		domain => $session->auth->{user}->{domain}
-	};	
+		mailbox => $session->auth->mailbox,
+		domain => $session->auth->domain,
+	};
 	my $mbox = $self->mailboxes->find_one($mboxid);
 
 	# Make sure path doesn't exist
@@ -132,8 +149,8 @@ override 'delete_folder' => sub {
 
     # make sure path exists
 	my $mboxid = {
-		mailbox => $session->auth->{user}->{mailbox},
-		domain => $session->auth->{user}->{domain}
+		mailbox => $session->auth->mailbox,
+		domain => $session->auth->domain,
 	};
 	my $mbox = $self->mailboxes->find_one($mboxid);
 
@@ -158,8 +175,9 @@ override 'rename_folder' => sub {
 	my ($self, $session, $path, $to) = @_;
 
 	# make sure path exists
-	my $mboxid = {mailbox => $session->auth->{user}->{mailbox}, domain => $session->auth->{user}->{domain}};
+	my $mboxid = {mailbox => $session->auth->mailbox, domain => $session->auth->domain};
 	my $mbox = $self->mailboxes->find_one($mboxid);
+
 	if(!$mbox->{store}->{children}->{$path}) {
 		return 0;
 	}
@@ -182,49 +200,12 @@ override 'rename_folder' => sub {
 
 #------------------------------------------------------------------------------
 
-override 'select_folder' => sub {
-	my ($self, $session, $path, $mode) = @_;
-
-	my $mboxid = {
-    	mailbox => $session->auth->{user}->{mailbox},
-    	domain => $session->auth->{user}->{domain}
-    };
-    my $mb = $self->mailboxes->find_one($mboxid);
-
-	if($mb->{store}->{children}->{$path}) {
-        my $exists = $mb->{store}->{children}->{$path}->{seen} + $mb->{store}->{children}->{$path}->{unseen};
-        my $recent = $mb->{store}->{children}->{$path}->{unseen};
-        my $permflags = '\Deleted \Seen \*';
-        my $storeflags = '\Unseen'; # think this is flags used by the current mailbox?
-        my $uidnext = $mb->{store}->{children}->{$path}->{nextuid};
-        my $unseen = $mb->{store}->{children}->{$path}->{first_unseen} // $uidnext;
-        my $validity = $mb->{validity}->{$path} // 1;
-
-        my @data;
-
-        # TODO data structure, and move markup back to IMAP state
-        push @data, $exists . ' EXISTS';
-        push @data, $recent . ' RECENT';
-        push @data, "OK [UNSEEN $unseen]";
-        push @data, "OK [UIDVALIDITY $validity]";
-        push @data, "OK [UIDNEXT $uidnext]";
-        push @data, "FLAGS ($storeflags)";
-        push @data, "OK [PERMANENTFLAGS ($permflags)";
-
-       	return \@data;
-    } else {
-    	return 0;
-    }
-};
-
-#------------------------------------------------------------------------------
-
-override 'subcribe_folder' => sub {
+override 'subscribe_folder' => sub {
 	my ($self, $session, $path) = @_;
 
 	my $mboxid = {
-		mailbox => $session->auth->{user}->{mailbox},
-		domain => $session->auth->{user}->{domain}
+		mailbox => $session->auth->mailbox,
+		domain => $session->auth->domain,
 	};
 
 	$self->mailboxes->update($mboxid, {
@@ -242,8 +223,8 @@ override 'unsubcribe_folder' => sub {
 	my ($self, $session, $path) = @_;
 
 	my $mboxid = {
-		mailbox => $session->auth->{user}->{mailbox},
-		domain => $session->auth->{user}->{domain}
+		mailbox => $session->auth->mailbox,
+		domain => $session->auth->domain,
 	};
 
 	$self->mailboxes->update($mboxid, {
@@ -257,42 +238,12 @@ override 'unsubcribe_folder' => sub {
 
 #------------------------------------------------------------------------------
 
-override 'fetch_folders' => sub {
-	my ($self, $session, $ref, $filter, $subscribed) = @_;
-
-	my $mboxid = {
-		mailbox => $session->auth->{user}->{mailbox},
-		domain => $session->auth->{user}->{domain}
-	};
-	my $mbox = $self->mailboxes->find_one($mboxid);
-	my $store_node = $mbox->{store};
-
-	my @folders;
-	my $re = qr/$filter/;
-
-	for my $sub (keys %{$store_node->{children}}) {
-    	if(!$filter || $sub =~ $re) {
-    		next if $subscribed && !$mbox->{subscriptions}->{$sub};
-
-    		my $flags = '\\HasNoChildren';
-    		push @folders, {
-    			path => $sub,
-    			flags => $flags,
-    		};
-        }
-    }
-
-    return \@folders;
-};
-
-#------------------------------------------------------------------------------
-
 override 'uid_copy' => sub {
     my ($self, $session, $from, $to, $dest) = @_;
 
     my $query = {
-        "mailbox.domain" => $session->auth->{user}->{domain},
-        "mailbox.user" => $session->auth->{user}->{mailbox},
+        "mailbox.domain" => $session->auth->domain,
+        "mailbox.mailbox" => $session->auth->mailbox,
         "path" => $session->selected,
     };
 
@@ -314,8 +265,8 @@ override 'uid_copy' => sub {
     $session->log("Got " . (scalar @$msgs) . " messages");
 
     my $query2 = {
-        "domain" => $session->auth->{user}->{domain},
-        "mailbox" => $session->auth->{user}->{mailbox},
+        "domain" => $session->auth->domain,
+        "mailbox" => $session->auth->mailbox,
     };
     print Dumper $query2;
     my $mbox = $self->mailboxes->find_one($query2);
@@ -360,14 +311,14 @@ override 'uid_store' => sub {
 	my ($self, $session, $from, $to, $params) = @_;
 
 	my $query = {
-        "mailbox.domain" => $session->auth->{user}->{domain},
-        "mailbox.user" => $session->auth->{user}->{mailbox},
+        "mailbox.domain" => $session->auth->domain,
+        "mailbox.mailbox" => $session->auth->mailbox,
         path => $session->selected,
         uid => int($from),
     };
     my $query2 = {
-        "domain" => $session->auth->{user}->{domain},
-        "mailbox" => $session->auth->{user}->{mailbox},
+        "domain" => $session->auth->domain,
+        "mailbox" => $session->auth->mailbox,
     };
     print Dumper $query;
     my $msg = $self->store->find_one($query);

@@ -24,6 +24,25 @@ has 'authtype' => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
 
+has '_stash' => ( is => 'rw', isa => 'HashRef' );
+
+sub stash {
+    my $self = shift;
+
+    $self->_stash({}) if !$self->_stash;
+
+    return $self->_stash unless @_;
+
+    return $self->_stash->{$_[0]} unless @_ > 1 || ref $_[0];
+
+    my $values = ref $_[0] ? $_[0] : {@_};
+    for my $key (keys %$values) {
+        $self->_stash->{$key} = $values->{$key};
+    }
+}
+
+#------------------------------------------------------------------------------
+
 sub log {
 	my $self = shift;
 	return if !$self->imap->debug;
@@ -63,8 +82,11 @@ sub begin {
     $self->stream->on(read => sub {
         my ($stream, $chunk) = @_;
 
-        $self->buffer(($self->buffer ? $self->buffer : '') . $chunk);
-        $self->receive if $self->buffer =~ /\n$/m;
+        my @parts = split /\r\n/, $chunk;
+        for my $part (@parts) {
+            $self->buffer(($self->buffer ? $self->buffer : '') . $part . "\r\n");
+            $self->receive if $self->buffer =~ /\r?\n$/m;
+        }
     });
 }
 
@@ -81,7 +103,6 @@ sub receive {
 
     # Only continue if we had an EOL
     my $buffer = $self->buffer;
-    return unless $buffer =~ /\n$/gs; #FIXME not necessary? done above
     $self->buffer('');
 
     # Get the id, command and any data

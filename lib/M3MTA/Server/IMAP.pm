@@ -74,6 +74,14 @@ sub get_user {
 
 #------------------------------------------------------------------------------
 
+sub get_mailbox {
+    my ($self, $mailbox, $domain) = @_;
+
+    return $self->backend->get_mailbox($mailbox, $domain);
+}
+
+#------------------------------------------------------------------------------
+
 sub append_message {
     my ($self, $session, $mailbox, $flags, $content) = @_;
 
@@ -110,7 +118,7 @@ sub select_folder {
     return $self->backend->select_folder($session, $path, $mode);
 }
 
-sub subcribe_folder {
+sub subscribe_folder {
     my ($self, $session, $path) = @_;
 
     return $self->backend->subscribe_folder($session, $path);
