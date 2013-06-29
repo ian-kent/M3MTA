@@ -16,7 +16,6 @@ has 'server' => ( is => 'rw' );
 
 has 'user'	 => ( is => 'rw' );
 has 'buffer' => ( is => 'rw' );
-has 'email'  => ( is => 'rw' );
 has 'state'	 => ( is => 'rw' );
 
 #------------------------------------------------------------------------------
@@ -79,7 +78,6 @@ sub begin {
     }
 
     $self->buffer('');
-    $self->email(M3MTA::Server::Models::Message->new);
     $self->state('ACCEPT');
 
     $self->stream->on(error => sub {

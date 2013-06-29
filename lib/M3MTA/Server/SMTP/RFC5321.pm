@@ -1,11 +1,9 @@
-package M3MTA::Server::SMTP::RFC0821;
-
-=head NAME
-M3MTA::Server::SMTP::RFC0821 - Basic SMTP
-=cut
+package M3MTA::Server::SMTP::RFC5321;
 
 use Modern::Perl;
 use Moose;
+
+use M3MTA::Server::Models::Envelope;
 
 use Data::Uniqid qw/ luniqid /;
 use Date::Format;
@@ -16,7 +14,7 @@ sub register {
 	my ($self, $smtp) = @_;
 
 	# Register this RFC
-    $smtp->register_rfc('RFC0821', $self);
+    $smtp->register_rfc('RFC5321', $self);
 
 	# Add some reply codes
 	$smtp->register_replycode({
@@ -56,11 +54,11 @@ sub register {
 	$smtp->register_hook('command', sub {
 		my ($session, $cmd, $data, $result) = @_;
 
-        $session->log("Checking command $cmd in RFC0821");
+        $session->log("Checking command $cmd in RFC5321");
 
 		# Don't let the command happen unless its HELO, EHLO, QUIT, NOOP or RSET
-		if($cmd !~ /^(HELO)$/ && !$session->email->helo) {
-            $result->{response} = [$M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "expecting HELO"];
+		if($cmd !~ /^(HELO|EHLO|RSET|QUIT|NOOP|HELP|EXPN|VRFY)$/ && !$session->stash('helo')) {
+            $result->{response} = [$M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "bad sequence of commands"];
             return 1;
 	    }
 
@@ -71,27 +69,17 @@ sub register {
 	# Add the commands
     $smtp->register_command('HELO', sub {
         my ($session, $data) = @_;
-        $self->helo($session, $data, 0);
+        $self->helo($session, $data);
     });
 
-    $smtp->register_command('SEND', sub {
+    $smtp->register_command('EHLO', sub {
         my ($session, $data) = @_;
-        $self->send($session, $data, 0);
-    });
-
-    $smtp->register_command('SOML', sub {
-        my ($session, $data) = @_;
-        $self->soml($session, $data, 0);
-    });
-
-    $smtp->register_command('SAML', sub {
-        my ($session, $data) = @_;
-        $self->saml($session, $data, 0);
+        $self->ehlo($session, $data);
     });
 
     $smtp->register_command('TURN', sub {
         my ($session, $data) = @_;
-        $self->turn($session, $data, 0);
+        $self->turn($session, $data);
     });
 
 	$smtp->register_command('MAIL', sub {
@@ -166,9 +154,40 @@ sub helo {
         return;
     }
 
-    $session->email->helo($data);
+    $session->stash(helo => $data);
 
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK} . " Hello '$data'. I'm", $session->smtp->ident);
+}
+
+#------------------------------------------------------------------------------
+
+sub ehlo {
+    my ($self, $session, $data) = @_;
+
+    if(!$data || $data =~ /^\s*$/) {
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "you didn't introduce yourself");
+        return;
+    }
+
+    $session->stash(helo => $data);
+
+    # Everything except last line has - between status and message
+
+    my @helos = ();
+    for (my $i = 0; $i < scalar @{$session->smtp->helo}; $i++) {
+        my $helo = &{$session->smtp->helo->[$i]}($session);
+        push @helos, $helo if $helo;
+    }
+
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}.((scalar @helos == 0) ? ' ' : '-')."Hello '$data'. I'm", $session->smtp->ident);
+    for (my $i = 0; $i < scalar @helos; $i++) {
+        my $helo = $helos[$i];
+        if($i == (scalar @helos) - 1) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, $helo);
+        } else {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK} . "-" . $helo);
+        }
+    }
 }
 
 #------------------------------------------------------------------------------
@@ -176,17 +195,15 @@ sub helo {
 sub mail {
 	my ($self, $session, $data) = @_;
 
-	if($session->email->from) {
+	if($session->stash('envelope') && $session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "MAIL command already received");
         return;
     }
 
-    # Clear the buffers
-    $session->email->from('');
-    $session->email->to([]);
-    $session->email->data('');
+    # Start a new transaction
+    $session->stash(envelope => M3MTA::Server::Models::Envelope->new);
 
-    if(my ($from) = $data =~ /^From:\s*<(.+)>$/i) {
+    if(my ($from, $params) = $data =~ /^From:<([^>]+)>(.*)$/i) {
         $session->log("Checking user against '$from'");
         my $r = $session->smtp->can_user_send($session, $from);
 
@@ -194,7 +211,7 @@ sub mail {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
             return;
         }
-        $session->email->from($from);
+        $session->stash('envelope')->from($from);
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$from sender ok");
         return;
     }
@@ -206,11 +223,11 @@ sub mail {
 sub rcpt {
 	my ($self, $session, $data) = @_;
 
-	if(!$session->email->from) {
+	if(!$session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
         return;
     }
-    if($session->email->data) {
+    if($session->stash('envelope')->data) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
         return;
     }
@@ -239,7 +256,7 @@ sub rcpt {
         	return;
         }
 
-        push @{$session->email->to}, $recipient;
+        push @{$session->stash('envelope')->to}, $recipient;
         M3MTA::Log->debug("Delivery accepted");
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
         return;
@@ -256,18 +273,18 @@ sub data {
 
 	if($session->state ne 'DATA') {
 		# Called from DATA command
-		if(scalar @{$session->email->to} == 0) {
+		if(scalar @{$session->stash('envelope')->to} == 0) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send RCPT command first");
             return;
         }
 
-        if($session->email->data) {
+        if($session->stash('envelope')->data) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
             return;
         }
 
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{START_MAIL_INPUT}, "Send mail, end with \".\" on line by itself");
-        $session->stash('DATA' => '');
+        $session->stash(data => '');
         $session->state('DATA');
         return;
 	}
@@ -288,32 +305,33 @@ sub data {
         # this is an rfc0821 thing, nothing to do with SIZE
 
         # Get or create the message id
+        my $message_id;
         if(my ($msg_id) = $data =~ /message-id: <(.*)>/mi) {
-        	$session->email->id($msg_id);
+            $message_id = $msg_id;
         } else {
         	# Generate a new one
         	my $id = luniqid . "@" . $session->smtp->config->{hostname};
-        	$session->email->id($id);
+            $message_id = $id;
         	$data = "Message-ID: $id\r\n$data";
         }
  
         # Add the return path
-        my $newdata .= "Return-Path: <" . $session->email->from . ">\r\n";
+        my $newdata .= "Return-Path: <" . $session->stash('envelope')->from . ">\r\n";
 
         # Add the received header
         my $now = time2str("%d %b %y %H:%M:%S %Z", time);
-        $newdata .= "Received: from " . $session->email->helo . " by " . $session->smtp->config->{hostname} . " (" . $session->smtp->ident . ")\r\n";
+        $newdata .= "Received: from " . $session->stash('helo') . " by " . $session->smtp->config->{hostname} . " (" . $session->smtp->ident . ")\r\n";
         # TODO some way to add 'with ESMTP' from RFC1869
         # TODO add in the 'for whoever' bit?
         #$newdata .= "          id " . $session->email->id . " for " . $session->email->to . "; " . $now . "\r\n";
-        $newdata .= "          id " . $session->email->id . " ; " . $now . "\r\n";
+        $newdata .= "          id $message_id ; $now\r\n";
 
-        # Prepend to the original data
-        $data = $newdata . $data;
+        # Store the data
+        $session->stash('envelope')->data($newdata . $data);
 
-        $session->email->data($data);
-
-        $session->respond($session->smtp->queue_message($session->email));
+        my $email = M3MTA::Server::Models::Message->new->from_json($session->stash('envelope')->to_json);
+        $email->id($message_id);
+        $session->respond($session->smtp->queue_message($email));
 
         $session->state('FINISHED');
         $session->buffer('');
@@ -354,7 +372,7 @@ sub rset {
     my ($self, $session, $data) = @_;
 
     $session->buffer('');
-    $session->email(M3MTA::Server::Models::Message->new);
+    $session->email(M3MTA::Server::Envelope->new);
     $session->state('ACCEPT');
 
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
