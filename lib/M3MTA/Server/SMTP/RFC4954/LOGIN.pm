@@ -49,7 +49,7 @@ sub data {
         if($@ || !$username) {
             $session->log("Error decoding base64 data: $@");
 
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Not a valid BASE64 string");
             $session->state('ACCEPT');
             $session->user(undef);
 
@@ -74,7 +74,7 @@ sub data {
     if($@ || !$password) {
         $session->log("Error decoding base64 data: $@");
 
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Not a valid BASE64 string");
         $session->state('ACCEPT');
         $session->user(undef);
 
@@ -91,7 +91,7 @@ sub data {
     my $user = $session->smtp->get_user($session->stash('username'), $password);
     if(!$user) {
         $session->log("Authentication failed");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "LOGIN authentication failed");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_FAILED}, "LOGIN authentication failed");
         $session->user(undef);
         delete $session->stash->{username} if $session->stash->{username};
         delete $session->stash->{password} if $session->stash->{password};

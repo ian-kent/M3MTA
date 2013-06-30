@@ -53,7 +53,7 @@ sub data {
     # If there's an error, or we didn't decode anything
     if($@ || !$decoded) {
     	$session->log("Error decoding base64 string: $@");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Not a valid BASE64 string");
         $session->user(undef);
         $session->state('ACCEPT');
         return;
@@ -63,7 +63,7 @@ sub data {
     my @parts = split /\0/, $decoded;
     if(scalar @parts != 3) {
     	$session->log("Invalid PLAIN token");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_FAILED}, "authentication failed: another step is needed in authentication");
         $session->user(undef);
         $session->state('ACCEPT');
         return;
@@ -84,7 +84,7 @@ sub data {
 
     if(!$authed) {
         $session->log("Authentication failed");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "PLAIN authentication failed");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_FAILED}, "PLAIN authentication failed");
         $session->user(undef);
     } else {
     	$session->log("Authentication successful");

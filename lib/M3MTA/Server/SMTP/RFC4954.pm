@@ -41,7 +41,7 @@ sub register {
 
         TEMPORARY_FAILURE          => 454,
 
-        UNKNOWN_AUTH_FAIL_TODO     => 535,
+        AUTHENTICATION_FAILED     => 535,
 
         AUTHENTICATION_REQUIRED    => 530,
         AUTHENTICATION_TOO_WEAK    => 534,
@@ -64,6 +64,8 @@ sub register {
     $smtp->register_helo(sub {
         $self->helo(@_);
     });
+
+    # TODO replace MAIL command to support AUTH=<mailbox> parameter
 }
 
 #------------------------------------------------------------------------------
@@ -103,7 +105,7 @@ sub auth {
 
     if(!$self->mechanisms->{$mechanism}) {
         $session->log("Mechanism $mechanism not registered");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: no mechanism available");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{COMMAND_PARAMETER_NOT_IMPLEMENTED}, "Error: authentication failed: no mechanism available");
         return;
     }
 
@@ -120,6 +122,11 @@ sub authenticate {
     my $buffer = $session->buffer;
     $buffer =~ s/\r?\n$//s;
     $session->buffer('');
+
+    if($buffer eq '*') {
+        $session->log("Client cancelled authentication with *");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Error: authentication failed: client cancelled authentication");
+    }
 
     my $mechanism = $session->stash('rfc4954_mechanism');
     $session->log("Calling data for mechanism $mechanism");
