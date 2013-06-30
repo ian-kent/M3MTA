@@ -72,6 +72,11 @@ config.insert({
             "enabled": 1,
             "require": 0,
             "require_always": 0
+        },
+        "auth": {
+            "plain": {
+                "allow_no_tls": 0
+            }
         }
     },
     "relay": {

@@ -15,8 +15,9 @@ sub helo {
 	my ($self, $session) = @_;
 
 	if(!$session->{tls_enabled}) {
-		# TODO make configurable
-		return undef;
+        unless($session->smtp->config->{extensions}->{auth}->{plain}->{allow_no_tls}) {
+		    return undef;
+        }
 	}
 
 	return "PLAIN";
@@ -26,6 +27,14 @@ sub helo {
 
 sub initial_response {
 	my ($self, $session, $args) = @_;
+
+    if(!$session->{tls_enabled}) {
+        unless($session->smtp->config->{extensions}->{auth}->{plain}->{allow_no_tls}) {
+            $session->log("PLAIN authentication received but connection is not TLS protected");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{COMMAND_PARAMETER_NOT_IMPLEMENTED}, "Error: authentication failed: must use a TLS connection");
+            return;
+        }
+    }
 
 	if(!$args) {
 		$session->log("PLAIN received no args in initial response, returning 334");
