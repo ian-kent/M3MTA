@@ -12,6 +12,7 @@ CURRENT SUPPORT
         - RFC5321 Basic and Extended SMTP
         - RFC1870 SIZE
         - RFC2487 TLS
+        - RFC2920 PIPELINING
         - RFC4954 Authentication with RFC4616 SASL PLAIN
     IMAP
         - IMAP4rev1
