@@ -9,7 +9,7 @@ use M3MTA::Log;
 
 #------------------------------------------------------------------------------
 
-sub send_smtp {
+sub send {
 	my ($self, $envelope, $error) = @_;
     
     # TODO support multiple recipients

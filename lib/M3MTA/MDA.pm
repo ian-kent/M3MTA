@@ -5,6 +5,7 @@ use Modern::Perl;
 
 use M3MTA::Storage::Message;
 use M3MTA::Client::SMTP;
+use M3MTA::Transport::Path;
 use M3MTA::Transport::Envelope;
 
 use Mojo::IOLoop;
@@ -237,8 +238,8 @@ sub process_message {
             # Attempt to send via SMTP
             my $error = '';
             my $envelope = M3MTA::Transport::Envelope->new(
-                from => $message->from,
-                to => $to, # TODO refactor to nicely support multiple to addresses to same host
+                from => M3MTA::Transport::Path->new->from_json($message->from),
+                to => [M3MTA::Transport::Path->new->from_json($to)], # TODO refactor to nicely support multiple to addresses to same host
                 data => $content->to_data,
             );
             my $res = M3MTA::Client::SMTP->send($envelope, \$error);
