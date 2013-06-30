@@ -67,6 +67,11 @@ config.insert({
             "broadcast": 1,
             "enforce": 1,
             "rcpt_check": 1
+        },
+        "starttls": {
+            "enabled": 1,
+            "require": 0,
+            "require_always": 0
         }
     },
     "relay": {

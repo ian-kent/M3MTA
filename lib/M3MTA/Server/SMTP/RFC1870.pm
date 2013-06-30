@@ -146,7 +146,7 @@ sub rcpt {
         $session->log("Checking size for $recipient");
         my ($u, $d) = $recipient =~ /(.*)@(.*)/;
         my $mailbox = $session->smtp->get_mailbox($u, $d);
-        if($mailbox) {
+        if($mailbox && $mailbox->size->maximum > 0) {
             if($session->stash('rfc1870_size') > $mailbox->size->maximum) {
                 # We'll return a permanent failure, on the basis that the users
                 # maximum mailbox size is unlikely to change before message expiry
