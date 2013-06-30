@@ -28,6 +28,11 @@ The RCPT check is set in
 When enabled, recipients are rejected up-front if delivery would cause the
 mailbox to exceed its maximum size.
 
+Enforcement of message DATA size is set in
+    $config->{extensions}->{size}->{enforce}
+When enabled, messages exceeding the size declared in the RCPT header
+are rejected as exceeding the maximum message size.
+
 =cut
 
 use Modern::Perl;
@@ -120,10 +125,12 @@ sub mail {
 sub rcpt {
     my ($self, $session, $data) = @_;
 
+    # We only end up here if rcpt_check is enabled
+
     $session->log("Using RCPT from RFC1870 (SIZE)");
 
-    # We need to re-check these here, otherwise we accidentally give
-    # an EXCEEDED_STORAGE_ALLOCATION error before a MAIL command
+    # We need to re-check these here, otherwise we could accidentally
+    # give a mailbox size error before a MAIL command
     if(!$session->stash('envelope') || !$session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
         return;
@@ -132,13 +139,23 @@ sub rcpt {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "DATA command already received");
         return;
     }
+
+    # Unless we have a valid recipient, there's no point in checking anything
     if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
         $session->log("Checking size for $recipient");
         my ($u, $d) = $recipient =~ /(.*)@(.*)/;
         my $mailbox = $session->smtp->get_mailbox($u, $d);
-        if($mailbox && !$mailbox->size->ok($session->stash('rfc1870_size'))) {
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
-            return;
+        if($mailbox) {
+            if($session->stash('rfc1870_size') > $mailbox->size->maximum) {
+                # We'll return a permanent failure, on the basis that the users
+                # maximum mailbox size is unlikely to change before message expiry
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Message size exceeds mailbox size");
+                return;
+            } elsif (!$mailbox->size->ok($session->stash('rfc1870_size'))) {
+                # Could be a temporary failure, i.e. user has too many messages
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Maximum mailbox size exceeded");
+                return;
+            }
         }
     }
     
@@ -185,7 +202,7 @@ sub data {
             $session->stash->{'data'} .= $session->buffer;
             $session->buffer('');
 
-            # Handle end of message here, we may have exceeded by only a few bytes
+            # Handle end of message here, we may have exceeded in the final line of content
             if($session->stash('data') =~ /.*\r\n\.\r\n$/s) {
                 $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
                 $session->state('ERROR');
