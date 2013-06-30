@@ -56,6 +56,12 @@ sub register {
 		$self->auth($session, $data);
 	});
 
+    # Replace RFC5321's MAIL command
+    $smtp->register_command('MAIL', sub {
+        my ($session, $data) = @_;
+        $self->mail($session, $data);
+    });
+
     # Register a state hook to capture data
     $smtp->register_state('AUTHENTICATE', sub {
         my ($session) = @_;
@@ -66,8 +72,6 @@ sub register {
     $smtp->register_helo(sub {
         $self->helo(@_);
     });
-
-    # TODO replace MAIL command to support AUTH=<mailbox> parameter
 }
 
 #------------------------------------------------------------------------------
@@ -85,6 +89,48 @@ sub helo {
     }
 
     return "AUTH $mechanisms";
+}
+
+#------------------------------------------------------------------------------
+
+sub mail {
+    my ($self, $session, $data) = @_;
+
+    # TODO need somewhere to store this in the message
+    # (and some way of making use of it in MDA)
+
+    if(my ($mailbox) = $data =~ /AUTH=<([^>]*)>/) {
+        # Strip off AUTH parameter
+        $data =~ s/\s*AUTH=<([^>]*)>//;
+
+        $session->log("Using MAIL from RFC4954, auth provided [$mailbox], remaining data [$data]");
+
+        # If client isn't trusted, reset the AUTH=<> parameter (but still include it!)
+        if(!$session->user) {
+            $mailbox = "";
+        }
+
+        # Even if client is trusted, make sure they are authenticated for $mailbox
+        # TODO
+
+        # Stash the auth (may now be <> if client isn't trusted)
+        $session->stash(rfc4954_mailbox => $mailbox);
+    } else {
+        # If client is authenticated, store AUTH=<value> for it
+        # TODO add configuration option
+        if($session->user) {
+            my $mailbox = $session->user->mailbox . '@' . $session->user->domain;
+            $session->log("No auth provided, applying AUTH=<$mailbox> for MAIL command");
+            $session->stash(rfc4954_mailbox => $mailbox);
+        }
+    }
+
+    if(my $rfc = $session->smtp->has_rfc('RFC1870')) {
+        # Fall back to RFC1870 (SIZE) if it exists
+        return $rfc->mail($session, $data);
+    }
+
+    return $session->smtp->has_rfc('RFC5321')->mail($session, $data);
 }
 
 #------------------------------------------------------------------------------

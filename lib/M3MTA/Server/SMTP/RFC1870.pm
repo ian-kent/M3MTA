@@ -65,7 +65,7 @@ sub register {
         $self->helo("SIZE");
     }
 
-    # Replace RFC5321's MAIL, RCPT and DATA commands
+    # Replace RFC5321's MAIL command
     $smtp->register_command('MAIL', sub {
         my ($session, $data) = @_;
         $self->mail($session, $data);

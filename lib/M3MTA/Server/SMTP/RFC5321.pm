@@ -210,6 +210,11 @@ sub mail {
     $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
     if(my ($from, $params) = $data =~ /^From:<([^>]*)>(.*)$/i) {
+        if($params) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Unexpected parameters on MAIL command");
+            return;
+        }
+
         my $path = M3MTA::Transport::Path->new->from_json($from);
         if($path->null) {
             M3MTA::Log->debug("Message has null reverse-path");
