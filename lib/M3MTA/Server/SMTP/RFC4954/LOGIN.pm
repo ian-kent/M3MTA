@@ -1,6 +1,6 @@
 package M3MTA::Server::SMTP::RFC4954::LOGIN;
 
-# RFC4616 SASL LOGIN
+# SASL LOGIN - probably not required
 
 use Modern::Perl;
 use Moose;

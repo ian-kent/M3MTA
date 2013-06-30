@@ -9,12 +9,10 @@ CURRENT SUPPORT
 ---------------
 
     SMTP
-        - Basic SMTP
-        - Extended SMTP
-        - SIZE
-        - TLS
-        - 8BITMIME
-        - SMTP AUTH
+        - RFC5321 Basic and Extended SMTP
+        - RFC1870 SIZE
+        - RFC2487 TLS
+        - RFC4954 Authentication with RFC4616 SASL PLAIN
     IMAP
         - IMAP4rev1
         - TLS
@@ -47,6 +45,7 @@ REQUIREMENTS
             JSON
             Log::Log4perl
             Mail::SpamAssassin
+            MIME::Base64
             Mojolicious (4.14 or later)
             MojoX::IOLoop::Server::StartTLS
             MongoDB
