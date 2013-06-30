@@ -80,26 +80,21 @@ sub auth {
         return;
     }
 
-    for($data) {
-        when (/^PLAIN\s?(.*)?$/) {
-            $session->state('AUTHENTICATE-PLAIN');
-            if($1) {
-                $session->log("Got authentication token with AUTH command: %s", $1);
-                $session->buffer($1);
-                $self->authenticate($session);
-                $session->buffer('');
-                return;
-            }
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE});
+    if($data =~ /^PLAIN\s?(.*)?$/) {
+        $session->state('AUTHENTICATE-PLAIN');
+        if($1) {
+            $session->log("Got authentication token with AUTH command: %s", $1);
+            $session->buffer($1);
+            $self->authenticate($session);
+            $session->buffer('');
+            return;
         }
-        when (/^LOGIN$/) {
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "VXNlcm5hbWU6");
-            $session->state('AUTHENTICATE-LOGIN');
-        }
-
-        default {
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: no mechanism available");
-        }
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE});
+    } elsif ($data =~ /^LOGIN$/) {
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "VXNlcm5hbWU6");
+        $session->state('AUTHENTICATE-LOGIN');
+    } else {
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: no mechanism available");
     }
 }
 
@@ -115,103 +110,99 @@ sub authenticate {
     my ($authtype) = $session->state =~ /^AUTHENTICATE-(\w+)/;
     M3MTA::Log->debug("authtype: $authtype");
 
-    for($authtype) {
-        when (/LOGIN/) {
-            M3MTA::Log->debug("Authenticating using LOGIN mechanism");
-            if(!$session->user || !$session->stash('username')) {
-                my $username;
-                eval {
-                    $username = decode_base64($buffer);
-                    $username =~ s/\r?\n$//s;
-                };
-                if($@ || !$username) {
-                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
-                    $session->log("Auth error: $@");
-                    $session->state('ACCEPT');
-                    $session->user(undef);
-                    delete $session->stash->{username} if $session->stash->{username};
-                    delete $session->stash->{password} if $session->stash->{password};
-                    return;
-                }
-                $session->stash(username => $username);
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "UGFzc3dvcmQ6");
-            } else {
-                my $password;
-                eval {
-                    $password = decode_base64($buffer);
-                };
-                $password =~ s/\r?\n$//s;
-                if($@ || !$password) {
-                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
-                    $session->log("Auth error: $@");
-                    $session->state('ACCEPT');
-                    $session->user(undef);
-                    delete $session->stash->{username} if $session->stash->{username};
-                    delete $session->stash->{password} if $session->stash->{password};
-                    return;
-                }
-                $session->stash(password => $password);
-                $session->log("LOGIN: Username [" . $session->stash('username') . "], Password [$password]");
-
-                my $user = $session->smtp->get_user($session->stash('username'), $password);
-                if(!$user) {
-                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "LOGIN authentication failed");
-                    $session->user(undef);
-                    delete $session->stash->{username} if $session->stash->{username};
-                    delete $session->stash->{password} if $session->stash->{password};
-                } else {
-                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_SUCCESSFUL}, "authentication successful");
-                    $session->user($user);
-                }
-
-                $session->state('ACCEPT');
-            }
-        }
-        when (/PLAIN/) {
-            $session->log("Authenticating using PLAIN mechanism");
-            my $decoded;
+    if($authtype =~ /LOGIN/) {
+        M3MTA::Log->debug("Authenticating using LOGIN mechanism");
+        if(!$session->user || !$session->stash('username')) {
+            my $username;
             eval {
-                $decoded = decode_base64($buffer);
+                $username = decode_base64($buffer);
+                $username =~ s/\r?\n$//s;
             };
-            if($@ || !$decoded) {
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
-                $session->user(undef);
+            if($@ || !$username) {
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
+                $session->log("Auth error: $@");
                 $session->state('ACCEPT');
+                $session->user(undef);
+                delete $session->stash->{username} if $session->stash->{username};
+                delete $session->stash->{password} if $session->stash->{password};
                 return;
             }
-            my @parts = split /\0/, $decoded;
-            if(scalar @parts != 3) {
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
-                $session->user(undef);
+            $session->stash(username => $username);
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{SERVER_CHALLENGE}, "UGFzc3dvcmQ6");
+        } else {
+            my $password;
+            eval {
+                $password = decode_base64($buffer);
+            };
+            $password =~ s/\r?\n$//s;
+            if($@ || !$password) {
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "Error: authentication failed: another step is needed in authentication");
+                $session->log("Auth error: $@");
                 $session->state('ACCEPT');
+                $session->user(undef);
+                delete $session->stash->{username} if $session->stash->{username};
+                delete $session->stash->{password} if $session->stash->{password};
                 return;
             }
-            my $username = $parts[0];
-            my $identity = $parts[1];
-            my $password = $parts[2];
+            $session->stash(password => $password);
+            $session->log("LOGIN: Username [" . $session->stash('username') . "], Password [$password]");
 
-            $session->log("PLAIN: Username [$username], Identity [$identity], Password [$password]");
-
-            if(!$username) {
-                $session->log("Setting username to identity");
-                $username = $identity;
-            }
-
-            my $authed = $session->smtp->get_user($username, $password);
-            if(!$authed) {
-                $session->log("Authed: $authed");
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "PLAIN authentication failed");
+            my $user = $session->smtp->get_user($session->stash('username'), $password);
+            if(!$user) {
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "LOGIN authentication failed");
                 $session->user(undef);
+                delete $session->stash->{username} if $session->stash->{username};
+                delete $session->stash->{password} if $session->stash->{password};
             } else {
                 $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_SUCCESSFUL}, "authentication successful");
-                $session->user($authed);
+                $session->user($user);
             }
+
             $session->state('ACCEPT');
         }
-        default {
-            # TODO use correct error code
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{COMMAND_NOT_UNDERSTOOD}, "Invalid mechanism");
+    } elsif ($authtype =~ /PLAIN/) {
+        $session->log("Authenticating using PLAIN mechanism");
+        my $decoded;
+        eval {
+            $decoded = decode_base64($buffer);
+        };
+        if($@ || !$decoded) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
+            $session->user(undef);
+            $session->state('ACCEPT');
+            return;
         }
+        my @parts = split /\0/, $decoded;
+        if(scalar @parts != 3) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "authentication failed: another step is needed in authentication");
+            $session->user(undef);
+            $session->state('ACCEPT');
+            return;
+        }
+        my $username = $parts[0];
+        my $identity = $parts[1];
+        my $password = $parts[2];
+
+        $session->log("PLAIN: Username [$username], Identity [$identity], Password [$password]");
+
+        if(!$username) {
+            $session->log("Setting username to identity");
+            $username = $identity;
+        }
+
+        my $authed = $session->smtp->get_user($username, $password);
+        if(!$authed) {
+            $session->log("Authed: $authed");
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{UNKNOWN_AUTH_FAIL_TODO}, "PLAIN authentication failed");
+            $session->user(undef);
+        } else {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{AUTHENTICATION_SUCCESSFUL}, "authentication successful");
+            $session->user($authed);
+        }
+        $session->state('ACCEPT');
+    } else {
+        # TODO use correct error code
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{COMMAND_NOT_UNDERSTOOD}, "Invalid mechanism");
     }
     return;
 }
