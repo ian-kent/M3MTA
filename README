@@ -10,10 +10,21 @@ CURRENT SUPPORT
 
     SMTP
         - RFC5321 Basic and Extended SMTP
+            - supports EHLO, HELO, MAIL, RCPT, DATA, RSET and NOOP commands            
         - RFC1870 SIZE
+            - optionally broadcast SIZE with maximum message size
+            - maximum message size check on MAIL command
+            - maximum local mailbox size check on RCPT command
+            - enforcement of MAIL SIZE on DATA command
         - RFC2487 TLS
+            - implements and broadcasts STARTTLS support
+            - optionally require a TLS connection for remote delivery
+            - optionally require a TLS connection for all (including local) delivery
         - RFC2920 PIPELINING
+            - broadcasts PIPELINING support
         - RFC4954 Authentication with RFC4616 SASL PLAIN
+            - implements and broadcasts AUTH support
+
     IMAP
         - IMAP4rev1
         - TLS
