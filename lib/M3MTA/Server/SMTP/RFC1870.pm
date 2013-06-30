@@ -164,9 +164,9 @@ sub data {
 
     # Test the length against the final message
     # otherwise the . gets counted and causes the size to always exceed
-    my $data = $session->stash('data') . $session->buffer;
-    $data =~ s/\r\n\.\r\n$//s;
-    my $len = length($data);
+    my $d = $session->stash('data') . $session->buffer;
+    $d =~ s/\r\n\.\r\n$//s;
+    my $len = length($d);
     my $max = $session->stash('rfc1870_size');
 
     if($len > $max) {
