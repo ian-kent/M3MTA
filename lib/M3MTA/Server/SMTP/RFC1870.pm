@@ -23,6 +23,11 @@ The broadcast option is set in
 and determines whether the SIZE extension displays the maximum size in its 
 EHLO response.
 
+The RCPT check is set in
+    $config->{extensions}->{size}->{rcpt_check}
+When enabled, recipients are rejected up-front if delivery would cause the
+mailbox to exceed its maximum size.
+
 =cut
 
 use Modern::Perl;
@@ -64,17 +69,17 @@ sub register {
         my ($session, $data) = @_;
         $self->rcpt($session, $data);
     });
-    # TODO capture DATA so we can do a final test of message size against stash size
-    #$smtp->register_command('DATA', sub {
-    #    my ($session, $data) = @_;
-    #    $self->data($session, $data);
-    #});
-    # Register a state hook to capture data
-    # TODO capture this too!
-    #$smtp->register_state(qr/^DATA$/, sub {
-    #    my ($session) = @_;
-    #    $self->data($session);
-    #});
+
+    # Capture DATA state hook so we can do a final test of message size against stash size
+    $smtp->register_state('DATA', sub {
+        my ($session, $data) = @_;
+        $self->data($session, $data);
+    });
+    # Create a new state to sink data more efficiently
+    $smtp->register_state('DATA_RFC1870', sub {
+        my ($session, $data) = @_;
+        $self->data($session, $data);
+    });
 }
 
 #------------------------------------------------------------------------------
@@ -120,18 +125,74 @@ sub rcpt {
         return;
     }
     if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
-        print "Checking size for $recipient\n";
-
-        # if we have a local mailbox, we want to check if the current mailbox size
-        # + the provided message size (in stash) will exceed the maximum mailbox size
-        # so we can notify up-front on RCPT command
-        # (not an RFC thing, a local policy thing - RFC lets us wait until after DATA)
-        # 
-        # a test to see if the user is already over limit is done by RFC5321
-        # a test to prevent the user going over limit is done by queue_message in backend
+        # Policy thing not RFC, but check if size is ok for recipient
+        if($session->smtp->config->{extensions}->{size}->{rcpt_check}) {
+            print "Checking size for $recipient\n";
+            my ($u, $d) = $recipient =~ /(.*)@(.*)/;
+            my $mailbox = $session->smtp->get_mailbox($u, $d);
+            if($mailbox && !$mailbox->size->ok($session->stash('rfc1870_size'))) {
+                $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
+                return;
+            }
+        }
     }
     
     return $session->smtp->has_rfc('RFC5321')->rcpt($session, $data);
+}
+
+#------------------------------------------------------------------------------
+
+sub data {
+    my ($self, $session, $data) = @_;
+
+    # Capture the new state to sink data
+    if($session->state eq 'DATA_RFC1870') {
+        $session->error("DATA_RFC1870 state");
+        $session->stash->{'data'} .= $session->buffer;
+        $session->buffer('');
+
+        # Once we get end of data, respond with failure
+        if($session->stash('data') =~ /.*\r\n\.\r\n$/s) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
+            $session->state('ERROR');
+            return;
+        }
+
+        # Otherwise sink
+        return;
+    }
+
+    # Test the length against the final message
+    # otherwise the . gets counted and causes the size to always exceed
+    my $data = $session->stash('data') . $session->buffer;
+    $data =~ s/\r\n\.\r\n$//s;
+    my $len = length($data);
+    my $max = $session->stash('rfc1870_size');
+
+    if($len > $max) {
+        # Don't bother calling RFC5321, we'll just wait until the end
+        # of the DATA input and return an error 552
+        $session->error("Message length [$len] exceeds declared size [$max]");
+
+        # Store data
+        $session->stash->{'data'} .= $session->buffer;
+        $session->buffer('');
+
+        # Handle end of message here, we may have exceeded by only a few bytes
+        if($session->stash('data') =~ /.*\r\n\.\r\n$/s) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
+            $session->state('ERROR');
+            return;
+        }
+
+        # Otherwise, set new state to sink data
+        $session->state('DATA_RFC1870');
+
+        return;
+    }
+
+    # Finally let RFC5321 have it
+    return $session->smtp->has_rfc('RFC5321')->data($session, $data);
 }
 
 #------------------------------------------------------------------------------

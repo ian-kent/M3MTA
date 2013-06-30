@@ -51,6 +51,16 @@ override 'get_user' => sub {
 
 #------------------------------------------------------------------------------
 
+override 'get_mailbox' => sub {
+    my ($self, $mailbox, $domain) = @_;
+    
+    M3MTA::Log->debug("Getting mailbox for $mailbox\@$domain");
+
+    return $self->util->get_mailbox($mailbox, $domain);
+};
+
+#------------------------------------------------------------------------------
+
 # Check if the from address is valid
 override 'can_user_send' => sub {
     my ($self, $session, $from) = @_;

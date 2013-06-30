@@ -101,7 +101,7 @@ sub register {
 	});
 
 	# Register a state hook to capture data
-	$smtp->register_state(qr/^DATA$/, sub {
+	$smtp->register_state('DATA', sub {
 		my ($session) = @_;
 		$self->data($session);
 	});
@@ -206,10 +206,7 @@ sub mail {
     }
 
     # Start a new transaction
-    $session->_stash({
-        # preserve helo
-        helo => $session->_stash->{helo}
-    });
+    delete $session->stash->{data};
     $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
     if(my ($from, $params) = $data =~ /^From:<([^>]*)>(.*)$/i) {
@@ -317,9 +314,6 @@ sub data {
         my $data = $session->stash('data');
         $data =~ s/\r\n\.\r\n$//s;
 
-        # rfc0821 4.5.2 transparency
-        $data =~ s/\n\.\./\n\./s;
-
         # TODO
         # check total size of data against global maximum message size
         # this is an rfc0821 thing, nothing to do with SIZE
@@ -328,6 +322,9 @@ sub data {
             $session->state('ERROR');
             return;
         }
+
+        # rfc0821 4.5.2 transparency
+        $data =~ s/\n\.\./\n\./s;
 
         # Get or create the message id
         my $message_id;

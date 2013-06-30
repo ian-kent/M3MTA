@@ -62,11 +62,11 @@ sub register_command {
 #-------------------------------------------------------------------------------
 
 sub register_state {
-    my ($self, $pattern, $callback) = @_;
-    $self->states([]) if !$self->states;
+    my ($self, $name, $callback) = @_;
+    $self->states({}) if !$self->states;
 
-    M3MTA::Log->debug("Registered callback for state '%s'", $pattern);
-    push $self->states, [ $pattern, $callback ];
+    M3MTA::Log->debug("Registered callback for state '%s'", $name);
+    $self->states->{$name} = $callback;
 }
 
 #-------------------------------------------------------------------------------

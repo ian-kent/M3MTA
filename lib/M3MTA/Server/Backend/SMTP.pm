@@ -22,6 +22,14 @@ sub get_user {
 
 #------------------------------------------------------------------------------    
 
+sub get_mailbox {
+    my ($self, $mailbox, $domain) = @_;
+
+    die("get_mailbox not implemented by backend");   
+}
+
+#------------------------------------------------------------------------------    
+
 sub can_user_send {
     my ($self, $session, $from) = @_;
 

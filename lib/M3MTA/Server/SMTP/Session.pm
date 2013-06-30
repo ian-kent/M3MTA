@@ -128,10 +128,8 @@ sub receive {
 	$self->trace("[RECD] %s", $self->buffer);
 
     # Check if we have a state hook
-    for my $ar (@{$self->smtp->states}) {
-        if($self->state =~ $ar->[0]) {
-            return &{$ar->[1]}($self);
-        }
+    if(my $cb = $self->smtp->states->{$self->state}) {
+        return $cb->($self);
     }
     
     # Clear the buffer

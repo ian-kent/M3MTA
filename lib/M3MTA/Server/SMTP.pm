@@ -75,7 +75,7 @@ sub register_helo {
     my ($self, $callback) = @_;
     
     M3MTA::Log->debug("Registered callback for helo");
-    
+
     push $self->helo, $callback;
 }
 
@@ -85,6 +85,14 @@ sub get_user {
     my ($self, $username, $password) = @_;
 
     return $self->backend->get_user($username, $password);
+}
+
+#------------------------------------------------------------------------------
+
+sub get_mailbox {
+    my ($self, $mailbox, $domain) = @_;
+
+    return $self->backend->get_mailbox($mailbox, $domain);
 }
 
 #------------------------------------------------------------------------------    
