@@ -99,21 +99,22 @@ sub register {
 sub mail {
     my ($self, $session, $data) = @_;
 
-    # TODO strip off SIZE=n
     if(my ($size) = $data =~ /SIZE=(\d+)/) {
+        # Strip off SIZE parameter
         $data =~ s/\s*SIZE=\d+//;
 
         $session->log("Using MAIL from RFC1870, size provided [$size], remaining data [$data]");
 
+        # Stash the size for the rest of the session
         $session->stash(rfc1870_size => $size);
 
+        # Compare against maximum size
         my $max_size = $session->smtp->config->{maximum_size} // 0;
-        unless ($max_size <= 0) {
-            if($size > $max_size) {
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
-                $session->log("Rejected message as too big");
-                return;
-            }
+        if($max_size > 0 && $size > $max_size) {
+            # Permanent failure
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Maximum message size exceeded");
+            $session->log("Rejected message as too big");
+            return;
         }
     }
 
@@ -167,7 +168,9 @@ sub rcpt {
 sub data {
     my ($self, $session, $data) = @_;
 
-    # If no size was given in MAIL command, do nothing
+    # We only end up here if enforce is enabled
+
+    # Unless size was given in MAIL command, do nothing
     if($session->stash('rfc1870_size')) {
         # Capture the new state to sink data
         if($session->state eq 'DATA_RFC1870') {
