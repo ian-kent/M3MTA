@@ -4,8 +4,10 @@ use Modern::Perl;
 use Moose;
 use Log::Log4perl qw/ :easy /;
 
-my $conf = q(
-	log4perl.rootLogger = DEBUG, Console
+my $level = $ENV{'M3MTA_LOG_LEVEL'} // 'DEBUG';
+
+my $conf = qq(
+	log4perl.rootLogger = $level, Console
 
 	log4perl.appender.Console 		 = Log::Log4perl::Appender::Screen
 	log4perl.appender.Console.layout = Log::Log4perl::Layout::PatternLayout

@@ -55,8 +55,12 @@ sub register {
     		$self->starttls($session, $data);
     	});
 
-        # Override RCPT to require STARTTLS for non-local recipients
+        # TODO somehow replace EHLO to prevent anything other
+        # than STARTTLS to be listed
+        # - not sure under what circumstances
+
         if($smtp->config->{extensions}->{starttls}->{require}) {
+            # Override RCPT to require STARTTLS for non-local recipients
             $smtp->register_command('RCPT', sub {
                 my ($session, $data) = @_;
                 $self->rcpt($session, $data);
@@ -67,8 +71,9 @@ sub register {
             STARTTLS_REQUIRED => 530,
         });
 
-        # Add a receive hook to prevent commands before a STARTTLS
+        
         if($smtp->config->{extensions}->{starttls}->{require_always}) {
+            # Add a receive hook to prevent commands before a STARTTLS
             $smtp->register_hook('command', sub {
                 my ($session, $cmd, $data, $result) = @_;
 

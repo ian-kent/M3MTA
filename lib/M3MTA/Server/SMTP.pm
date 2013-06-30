@@ -13,7 +13,7 @@ use M3MTA::Server::SMTP::Session;
 use M3MTA::Server::SMTP::RFC5321; # Basic/Extended SMTP
 use M3MTA::Server::SMTP::RFC1870; # SIZE extension
 use M3MTA::Server::SMTP::RFC2487; # STARTTLS extension
-use M3MTA::Server::SMTP::RFC2554; # AUTH extension
+use M3MTA::Server::SMTP::RFC4954; # AUTH extension
 
 #------------------------------------------------------------------------------
 
@@ -29,7 +29,7 @@ sub BUILD {
     M3MTA::Server::SMTP::RFC5321->new->register($self); # Basic/Extended SMTP
     M3MTA::Server::SMTP::RFC1870->new->register($self); # SIZE extension
     M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS extension
-    M3MTA::Server::SMTP::RFC2554->new->register($self); # AUTH extension
+    M3MTA::Server::SMTP::RFC4954->new->register($self); # AUTH extension
 }
 
 #------------------------------------------------------------------------------
