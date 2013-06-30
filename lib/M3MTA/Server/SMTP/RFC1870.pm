@@ -132,7 +132,7 @@ sub rcpt {
 
     # We need to re-check these here, otherwise we could accidentally
     # give a mailbox size error before a MAIL command
-    if(!$session->stash('envelope') || !$session->stash('envelope')->from) {
+    if(!$session->stash('envelope') || !defined $session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
         return;
     }

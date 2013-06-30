@@ -216,20 +216,20 @@ sub mail {
         }
 
         my $path = M3MTA::Transport::Path->new->from_json($from);
+        $session->stash('envelope')->from($path);
         if($path->null) {
             M3MTA::Log->debug("Message has null reverse-path");
-        } else {
-            $session->log("Checking user against '$path'");
-            my $r = $session->smtp->can_user_send($session, $path);
+        } 
 
-            if(!$r) {
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
-                return;
-            }
-            $session->stash('envelope')->from($path);
-            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$path sender ok");
+        $session->log("Checking user against '$path'");
+        my $r = $session->smtp->can_user_send($session, $path);
+
+        if(!$r) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
             return;
         }
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$path sender ok");
+        return;
     }
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
 }
@@ -239,7 +239,7 @@ sub mail {
 sub rcpt {
 	my ($self, $session, $data) = @_;
 
-	if(!$session->stash('envelope')->from) {
+	if(!defined $session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
         return;
     }
