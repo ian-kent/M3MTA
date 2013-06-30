@@ -108,10 +108,14 @@ sub mail {
         # If client isn't trusted, reset the AUTH=<> parameter (but still include it!)
         if(!$session->user) {
             $mailbox = "";
+        } else {
+            # Even if client is trusted, make sure they are authenticated for $mailbox
+            my $path = M3MTA::Transport::Path->new->from_json($mailbox);
+            if($path->mailbox ne $session->user->mailbox || $path->domain ne $session->user->domain) {
+                # Don't trust them!
+                $mailbox = "";
+            }
         }
-
-        # Even if client is trusted, make sure they are authenticated for $mailbox
-        # TODO
 
         # Stash the auth (may now be <> if client isn't trusted)
         $session->stash(rfc4954_mailbox => $mailbox);
