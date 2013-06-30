@@ -22,7 +22,9 @@ CURRENT SUPPORT
             - optionally require a TLS connection for all (including local) delivery
         - RFC2920 PIPELINING
             - broadcasts PIPELINING support
-        - RFC4954 Authentication with RFC4616 SASL PLAIN
+        - RFC4616 SASL PLAIN
+            - implements the SASL PLAIN mechanism for RFC4954
+        - RFC4954 AUTH
             - implements and broadcasts AUTH support
 
     IMAP
