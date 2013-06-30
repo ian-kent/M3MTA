@@ -55,9 +55,8 @@ sub register {
     		$self->starttls($session, $data);
     	});
 
+        # Override RCPT to require STARTTLS for non-local recipients
         if($smtp->config->{extensions}->{starttls}->{require}) {
-            # TODO replace RCPT command to check if message is for local delivery
-            # reject if its not, since STARTTLS is required
             $smtp->register_command('RCPT', sub {
                 my ($session, $data) = @_;
                 $self->rcpt($session, $data);
@@ -92,6 +91,7 @@ sub register {
             $self->helo(@_);
         });
 
+        # Hook into accept to prevent a welcome message
         $smtp->register_hook('accept', sub {
         	my ($session, $settings) = @_;
 
