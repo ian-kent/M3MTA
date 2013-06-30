@@ -56,6 +56,8 @@ REQUIREMENTS
         - MongoDB
         - SpamAssassin (if you want to use it, otherwise remove from config)
         - CPAN modules:
+            Digest::MD5
+            Digest::HMAC_MD5
             Hash::Merge
             IO::Socket::SSL
             JSON
