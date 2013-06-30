@@ -26,10 +26,7 @@ sub initial_response {
 
 	if(!$args) {
 		$session->log("CRAM-MD5 received no args in initial response, returning 334");
-        my $rand = int(rand(10000));
-        my $time = time;
-        my $host = $session->smtp->config->{hostname};
-        my $challenge = "<$rand.$time\@$host>";
+        my $challenge = "<" . int(rand(10000)) . "." . time . "\@" . $session->smtp->config->{hostname} . ">";
         $session->stash(cram_md5_challenge => $challenge);
         my $md5_challenge = encode_base64($challenge);
         $md5_challenge =~ s/[\r\n]*$//;
