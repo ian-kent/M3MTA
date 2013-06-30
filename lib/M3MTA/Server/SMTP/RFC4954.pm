@@ -9,8 +9,10 @@ use Moose;
 
 use M3MTA::Log;
 
+# TODO require these below
 use M3MTA::Server::SMTP::RFC4954::PLAIN;
 use M3MTA::Server::SMTP::RFC4954::LOGIN;
+use M3MTA::Server::SMTP::RFC4954::CRAM_MD5;
 
 use MIME::Base64 qw/ decode_base64 encode_base64 /;
 
@@ -152,7 +154,7 @@ sub auth {
         return;
     }
 
-    my ($mechanism, $args) = $data =~ /^(\w+)\s?(.*)?$/;
+    my ($mechanism, $args) = $data =~ /^([\w-]+)\s?(.*)?$/;
     $session->log("Got mechanism [$mechanism] with args [$args]");
 
     if(!$self->mechanisms->{$mechanism}) {
@@ -163,6 +165,7 @@ sub auth {
 
     $session->log("Mechanism $mechanism found, calling inital_response");
     $session->stash(rfc4954_mechanism => $mechanism);
+    $session->state('AUTHENTICATE');
     $self->mechanisms->{$mechanism}->initial_response($session, $args);
 }
 

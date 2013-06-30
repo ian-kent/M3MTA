@@ -76,7 +76,8 @@ config.insert({
         "auth": {
             "mechanisms": {
                 "PLAIN": "M3MTA::Server::SMTP::RFC4954::PLAIN",
-                "LOGIN": "M3MTA::Server::SMTP::RFC4954::LOGIN"
+                "LOGIN": "M3MTA::Server::SMTP::RFC4954::LOGIN",
+                "CRAM-MD5": "M3MTA::Server::SMTP::RFC4954::CRAM_MD5"
             },
             "plain": {
                 "allow_no_tls": 0

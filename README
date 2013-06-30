@@ -16,6 +16,8 @@ CURRENT SUPPORT
             - maximum message size check on MAIL command
             - maximum local mailbox size check on RCPT command
             - enforcement of MAIL SIZE on DATA command
+        - RFC2195 SASL CRAM-MD5
+            - implements the SASL CRAM-MD5 mechanism for RFC4954
         - RFC2487 TLS
             - implements and broadcasts STARTTLS support
             - optionally require a TLS connection for remote delivery

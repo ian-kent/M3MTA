@@ -37,7 +37,12 @@ sub get_user {
 	my ($self, $username, $password) = @_;
 
 	M3MTA::Log->debug("Loading mailbox for username [$username], password [<hidden>]");
-    my $mailbox = $self->backend->mailboxes->find_one({ username => $username, password => $password });
+    my $mailbox;
+    if(!defined $password) {
+        $mailbox = $self->backend->mailboxes->find_one({ username => $username });
+    } else {
+        $mailbox = $self->backend->mailboxes->find_one({ username => $username, password => $password });
+    }    
 
     if($mailbox && $mailbox->{destination}) {
         M3MTA::Log->debug("Mailbox is alias");
