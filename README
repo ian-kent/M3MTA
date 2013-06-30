@@ -29,20 +29,20 @@ CURRENT SUPPORT
         - RFC4954 AUTH
             - implements and broadcasts AUTH support
 
+    MDA
+        - Local user message delivery to MongoDB backend
+        - Aliasing to local or remote addresses (including alias chains)
+        - Catch-all mailboxes and aliases
+        - Remote message delivery via SMTP
+        - Relay only domains for backup MX
+        - Configurable retry times and notifications
+        - Mailbox size limits
+        - Message filtering at time of delivery
+            - SpamAssassin already built in
+
     IMAP
         - IMAP4rev1
         - TLS
-
-    Features:
-        - Local message delivery using MongoDB
-        - Remote message delivery using SMTP
-        - Local, remote and chained aliases
-        - Catch-all mailboxes or aliases
-        - Can act as backup MX
-        - Supports SpamAssassin
-        - Mailbox size limits and maximum message size
-        - Configurable retry times and notifications
-        - Simple expansion using filters and hooks
 
     Scalability:
         - Multiple IMAP, SMTP or MDA daemons can be started
