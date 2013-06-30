@@ -112,6 +112,9 @@ override 'can_accept_mail' => sub {
         if(ref($mailbox) =~ /::Alias$/) {
             M3MTA::Log->debug("- Mailbox exists locally as alias");
             return $M3MTA::Server::Backend::SMTP::ACCEPTED;
+        } elsif (ref($mailbox) =~ /::List$/) {
+            M3MTA::Log->debug("- Mailbox exists locally as list");
+            return $M3MTA::Server::Backend::SMTP::ACCEPTED;
         }
 
         if($mailbox->size->maximum && $mailbox->size->maximum <= $mailbox->size->current) {

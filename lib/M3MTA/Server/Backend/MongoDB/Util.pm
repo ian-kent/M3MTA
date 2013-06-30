@@ -26,7 +26,7 @@ sub get_domain {
 
 	M3MTA::Log->debug("Loading domain: $domain");
 
-	my $d = $self->domains->find_one({domain => $domain});
+	my $d = $self->backend->domains->find_one({domain => $domain});
 	return undef if !$d;
 
 	return M3MTA::Storage::Domain->new->from_json($d);
@@ -85,9 +85,16 @@ sub get_mailbox {
         }
     }
 
-    if($mailbox) {
-		return M3MTA::Storage::Mailbox::Local->new->from_json($mailbox);
-	}
+    if($mailbox && $mailbox->{destination}) {
+        M3MTA::Log->debug("Mailbox is alias");
+        return M3MTA::Storage::Mailbox::Alias->new->from_json($mailbox);
+    } elsif ($mailbox && $mailbox->{members}) {
+        M3MTA::Log->debug("Mailbox is a list");
+        return M3MTA::Storage::Mailbox::List->new->from_json($mailbox);
+    } elsif ($mailbox) {
+        M3MTA::Log->debug("Mailbox is local");
+        return M3MTA::Storage::Mailbox::Local->new->from_json($mailbox);
+    }
 
 	return undef;
 }

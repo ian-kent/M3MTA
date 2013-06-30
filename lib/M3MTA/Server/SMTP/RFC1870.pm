@@ -146,16 +146,20 @@ sub rcpt {
         $session->log("Checking size for $recipient");
         my ($u, $d) = $recipient =~ /(.*)@(.*)/;
         my $mailbox = $session->smtp->get_mailbox($u, $d);
-        if($mailbox && $mailbox->size->maximum > 0) {
-            if($session->stash('rfc1870_size') > $mailbox->size->maximum) {
-                # We'll return a permanent failure, on the basis that the users
-                # maximum mailbox size is unlikely to change before message expiry
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Message size exceeds mailbox size");
-                return;
-            } elsif (!$mailbox->size->ok($session->stash('rfc1870_size'))) {
-                # Could be a temporary failure, i.e. user has too many messages
-                $session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Maximum mailbox size exceeded");
-                return;
+        if(ref($mailbox) =~ /::List$/) {
+            $session->log("Mailbox is list, not checking size");
+        } else {
+            if($mailbox && $mailbox->size->maximum > 0) {
+                if($session->stash('rfc1870_size') > $mailbox->size->maximum) {
+                    # We'll return a permanent failure, on the basis that the users
+                    # maximum mailbox size is unlikely to change before message expiry
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Message size exceeds mailbox size");
+                    return;
+                } elsif (!$mailbox->size->ok($session->stash('rfc1870_size'))) {
+                    # Could be a temporary failure, i.e. user has too many messages
+                    $session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Maximum mailbox size exceeded");
+                    return;
+                }
             }
         }
     }

@@ -171,14 +171,14 @@ print("Inserting demo domain: " + mailhost);
 domains.insert({
     "domain": mailhost,
     "delivery": "local",
-    "postmaster": "postmaster@" + mailhost
+    "postmaster": demouser + "@" + mailhost
 });
 
 print("Inserting demo relay domain (i.e. backup MX): " + relayhost);
 domains.insert({
     "domain": relayhost,
     "delivery": "relay",
-    "postmaster": "postmaster@" + relayhost
+    "postmaster": demouser + "@" + relayhost
 });
 
 //------------------------------------------------------------------------------
