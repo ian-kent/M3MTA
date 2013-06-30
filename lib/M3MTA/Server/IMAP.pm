@@ -13,6 +13,8 @@ use M3MTA::Server::IMAP::State::Authenticated;
 use M3MTA::Server::IMAP::State::Selected;
 use M3MTA::Server::IMAP::State::Any;
 
+use M3MTA::Log;
+
 #------------------------------------------------------------------------------
 
 has 'states'   => ( is => 'rw', default => sub { {} } );
@@ -30,18 +32,13 @@ sub BUILD {
     M3MTA::Server::IMAP::State::Any->new->register($self);
 }
 
-sub log {
-    shift;
-    M3MTA::Log->debug(@_);
-}
-
 #------------------------------------------------------------------------------
 
 # Handles new connections from M3MTA::Server::Base
 sub accept {
     my ($self, $server, $loop, $stream, $id) = @_;
 
-    $self->log("Session accepted with id %s", $id);
+    M3MTA::Log->debug("Session accepted with id %s", $id);
 
     M3MTA::Server::IMAP::Session->new(
         imap => $self, 
@@ -66,7 +63,7 @@ sub get_state {
 
 sub register_state {
     my ($self, $state, $callback) = @_;
-    $self->log("Registering callback for state '%s'", $state);
+    M3MTA::Log->debug("Registering callback for state '%s'", $state);
     $self->states->{$state} = $callback;
 }
 

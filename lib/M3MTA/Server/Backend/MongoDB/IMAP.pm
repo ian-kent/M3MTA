@@ -38,7 +38,7 @@ after 'init_db' => sub {
 override 'get_user' => sub {
     my ($self, $username, $password) = @_;
     
-    print "User auth for username [$username] with password [$password]\n";
+    M3MTA::Log->debug("User auth for username [$username] with password [$password]");
 
     return $self->util->get_user($username, $password);
 };
@@ -75,7 +75,8 @@ override 'append_message' => sub {
     );
 
     use Data::Dumper;
-    M3MTA::Log->debug("Loaded mailbox:\n%s", (Dumper $mailbox));
+    M3MTA::Log->debug("Loaded mailbox");
+    M3MTA::Log->trace(Dumper $mailbox);
 
     return $self->util->add_to_mailbox(
         $session->auth->mailbox,
@@ -95,13 +96,11 @@ override 'fetch_messages' => sub {
     # Note - we just use a JSON query here, its probably
     # the easiest way to describe an IMAP query anyway
 	my @messages = $self->store->find($query)->all;
+    M3MTA::Log->trace(Dumper \@messages);
 
     my @msgs = map { 
         M3MTA::Storage::Mailbox::Message->new->from_json($_);
     } @messages;
-
-    print Dumper \@messages;
-    print Dumper \@msgs;
 
 	return \@msgs;
 };

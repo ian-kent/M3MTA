@@ -52,6 +52,24 @@ sub log {
 	M3MTA::Log->debug($message, $self->id, @_);
 }
 
+sub trace {
+    my $self = shift;
+
+    my $message = shift;
+    $message = '[SESSION %s] ' . $message;
+
+    M3MTA::Log->trace($message, $self->id, @_);
+}
+
+sub error {
+    my $self = shift;
+
+    my $message = shift;
+    $message = '[SESSION %s] ' . $message;
+
+    M3MTA::Log->error($message, $self->id, @_);
+}
+
 #------------------------------------------------------------------------------
 
 sub respond {
@@ -59,7 +77,7 @@ sub respond {
 
     my $c = join ' ', @cmd;
     $self->stream->write("$c\r\n");
-    $self->log("[SENT] %s", $c);
+    $self->trace("[SENT] %s", $c);
     return;
 }
 
@@ -73,10 +91,10 @@ sub begin {
 
     $self->stream->on(error => sub {
         my ($stream, $error) = @_;
-        $self->log("Stream error: %s", $error);
+        $self->error("Stream error: %s", $error);
     });
     $self->stream->on(close => sub {
-        $self->log("Stream closed");
+        $self->error("Stream closed");
     });
     $self->stream->on(read => sub {
         my ($stream, $chunk) = @_;
@@ -94,7 +112,7 @@ sub begin {
 sub receive {
 	my ($self) = @_;
 
-    $self->log("[RECD] %s", $self->buffer);
+    $self->trace("[RECD] %s", $self->buffer);
 
     if($self->receive_hook) {
         return $self->receive_hook->($self);

@@ -122,7 +122,7 @@ sub get_param_map {
     	$pmap->{$buffer} = 1;
     }
 
-   	$session->log(Dumper $pmap);
+   	$session->trace(Dumper $pmap);
 
     return $pmap;
 }
@@ -226,7 +226,16 @@ sub uid_fetch {
     my $argset = $self->parse_uid_fetch_args($args);
     my %ranges = %{$argset->{ranges}};
     my $params = $argset->{params};
-    $session->log("Got RANGES [" . (Dumper \%ranges) . "], ARGS: $params");
+    my $rng = '';
+    for my $s (keys %ranges) {
+        $rng .= ", " if $rng;
+        if($ranges{$s}) {
+            $rng .= "{ $s => " . $ranges{$s} . " }";
+        } else {
+            $rng .= "{ $s }";
+        }
+    }
+    $session->log("Got RANGES [$rng], ARGS: $params");
 
     my $query = {
         "mailbox.domain" => $session->auth->domain,
@@ -250,14 +259,14 @@ sub uid_fetch {
                 delete $query->{uid}->{'$lte'};
             }
         }  
-        $session->log(Dumper $query);
+        $session->trace(Dumper $query);
         my $msgs = $session->imap->fetch_messages($session, $query);
         push $messages, @$msgs;
     }
 
     my $pmap = $self->get_param_map($session, $params);
 
-    print Dumper $messages;
+    $session->trace(Dumper $messages);
 
    	foreach my $email (@$messages) {   
         # TODO should be sequence not uid for first number?
@@ -265,7 +274,7 @@ sub uid_fetch {
    		my $extra = '';
 
         if($pmap->{'FLAGS'}) {
-            print Dumper $email->flags;
+            $session->trace(Dumper $email->flags);
             $response .= "FLAGS (" . (join ' ', @{$email->flags}) . ") ";
         } 
 
