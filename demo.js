@@ -61,6 +61,12 @@ config.insert({
     "ports": [ 25 ],
 
     "maximum_size": 10240000,
+
+    "extensions": {
+        "size": {
+            "broadcast": 1
+        }
+    },
     "relay": {
         "auth": 1,
         "anon": 0 

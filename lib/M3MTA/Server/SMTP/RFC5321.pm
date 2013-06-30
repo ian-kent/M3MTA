@@ -206,6 +206,10 @@ sub mail {
     }
 
     # Start a new transaction
+    $session->_stash({
+        # preserve helo
+        helo => $session->_stash->{helo}
+    });
     $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
     if(my ($from, $params) = $data =~ /^From:<([^>]*)>(.*)$/i) {
@@ -319,6 +323,11 @@ sub data {
         # TODO
         # check total size of data against global maximum message size
         # this is an rfc0821 thing, nothing to do with SIZE
+        if(length $data > $session->smtp->config->{maximum_size}) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{TRANSACTION_FAILED}, "Message exceeded maximums size");
+            $session->state('ERROR');
+            return;
+        }
 
         # Get or create the message id
         my $message_id;
@@ -388,6 +397,7 @@ sub rset {
     my ($self, $session, $data) = @_;
 
     $session->buffer('');
+    $session->_stash({});
     $session->email(M3MTA::Server::Envelope->new);
     $session->state('ACCEPT');
 
