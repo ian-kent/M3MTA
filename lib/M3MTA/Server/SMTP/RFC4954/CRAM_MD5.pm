@@ -38,8 +38,8 @@ sub initial_response {
 		return;
 	}
 
-    # TODO return error
-	#return $self->data($session, $args);
+    $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Unexpected parameters for AUTH CRAM-MD5");
+    $session->state('ACCEPT');
 }
 
 #------------------------------------------------------------------------------

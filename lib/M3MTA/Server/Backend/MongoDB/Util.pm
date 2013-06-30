@@ -14,6 +14,7 @@ use M3MTA::Storage::Domain;
 use M3MTA::Storage::Mailbox;
 use M3MTA::Storage::Mailbox::Alias;
 use M3MTA::Storage::Mailbox::Local;
+use M3MTA::Storage::Mailbox::List;
 use M3MTA::Storage::Mailbox::Message;
 
 has 'backend' => ( is => 'rw', required => 1 );
@@ -47,6 +48,9 @@ sub get_user {
     if($mailbox && $mailbox->{destination}) {
         M3MTA::Log->debug("Mailbox is alias");
         return M3MTA::Storage::Mailbox::Alias->new->from_json($mailbox);
+    } elsif ($mailbox && $mailbox->{members}) {
+        M3MTA::Log->debug("Mailbox is a list");
+        return M3MTA::Storage::Mailbox::List->new->from_json($mailbox);
     } elsif ($mailbox) {
         M3MTA::Log->debug("Mailbox is local");
         return M3MTA::Storage::Mailbox::Local->new->from_json($mailbox);

@@ -16,6 +16,8 @@ var aliasto = "demo@" + mailhost; // forwards to demo@YOUR.DOMAIN
 var extalias = "external"; // will be external@YOUR.DOMAIN
 var extaliasto = "YOUR.NAME@EXTERNAL.DOMAIN";
 
+var list = "list"; // will be list@YOUR.DOMAIN
+
 var relayhost = "YOUR.RELAY.DOMAIN";
 
 var dbconfig = "config";
@@ -180,6 +182,17 @@ domains.insert({
 });
 
 //------------------------------------------------------------------------------
+
+print("Inserting mailing list: " + list + "@" + mailhost);
+mailboxes.insert({
+    "domain": mailhost,
+    "mailbox": list,
+    "owner": demouser + "@" + mailhost,
+    "members": [
+        demouser + "@" + mailhost,
+        alias + "@" + mailhost
+    ]
+});
 
 print("Inserting alias mailbox: " + alias + "@" + mailhost + " -> " + aliasto);
 mailboxes.insert({

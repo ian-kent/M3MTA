@@ -16,6 +16,14 @@ use M3MTA::Server::SMTP::RFC2487; # STARTTLS extension
 use M3MTA::Server::SMTP::RFC2920; # PIPELINING extension
 use M3MTA::Server::SMTP::RFC4954; # AUTH extension
 
+# TODO
+# - VRFY
+# - ETRN
+# - EXPN
+# - DSN
+# - 8BITMIME
+# - ENHANCEDSTATUSCODES
+
 #------------------------------------------------------------------------------
 
 our %ReplyCodes = ();
