@@ -64,7 +64,9 @@ config.insert({
 
     "extensions": {
         "size": {
-            "broadcast": 1
+            "broadcast": 1,
+            "enforce": 1,
+            "rcpt_check": 1
         }
     },
     "relay": {
