@@ -27,9 +27,11 @@ sub register {
     }
     $smtp->register_rfc('RFC4954', $self);
 
-    # Register known mechanisms
-    $self->mechanisms->{PLAIN} = M3MTA::Server::SMTP::RFC4954::PLAIN->new(rfc => $self);
-    $self->mechanisms->{LOGIN} = M3MTA::Server::SMTP::RFC4954::LOGIN->new(rfc => $self);
+    # Register configured mechanisms
+    for my $mechanism (keys $smtp->config->{extensions}->{auth}->{mechanisms}) {
+        my $class = $smtp->config->{extensions}->{auth}->{mechanisms}->{$mechanism};
+        $self->mechanisms->{$mechanism} = $class->new(rfc => $self);
+    }
 
     # Add some reply codes
     $smtp->register_replycode({

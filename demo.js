@@ -74,6 +74,10 @@ config.insert({
             "require_always": 0
         },
         "auth": {
+            "mechanisms": {
+                "PLAIN": "M3MTA::Server::SMTP::RFC4954::PLAIN",
+                "LOGIN": "M3MTA::Server::SMTP::RFC4954::LOGIN"
+            },
             "plain": {
                 "allow_no_tls": 0
             }
