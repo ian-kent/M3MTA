@@ -161,7 +161,7 @@ override 'requeue' => sub {
         my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds + $offset));
 
         $email->delivery_time($rq_date);
-        $email->requeued(int($email->{requeued}) + 1);
+        $email->requeued(int($email->requeued) + 1);
         push $email->attempts, M3MTA::Storage::Message::Attempt->new(
             date => DateTime->now,
             error => $error,

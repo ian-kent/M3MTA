@@ -17,7 +17,7 @@ sub monkey {
 
 	return if !$monkeys{$name};
 
-	die if rand(100) < $monkeys{$name};
+	die("Chaos monkey!") if rand(100) < $monkeys{$name};
 
 	return;
 }
