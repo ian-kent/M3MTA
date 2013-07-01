@@ -115,48 +115,78 @@ sub block {
 
     my $inactivity_count = 0;
 
-	while (1) {    
-        # Poll for a new message  
+	while (1) {
+        local $@ = undef;
+
+        M3MTA::Log->trace("Polling for message");
+
+        # Poll for a new message
+        my $message;
         eval {
-            M3MTA::Log->trace("Polling for message");
-            my $message = $self->backend->poll;
-
-            # Slowly increase the delay if nothing happens
-            if(!$message) {
-                $inactivity_count++;
-                M3MTA::Log->trace("No message found, inactivity count is: $inactivity_count");
-
-                # Every 10 undef results = 1 second extra
-                my $sleep = 5 + (int($inactivity_count / 10));
-                # But limit to 60 seconds
-                $sleep = 60 if $sleep > 60;
-
-                M3MTA::Log->trace("Sleeping for $sleep seconds");
-
-                sleep $sleep;
-                return;
-            }
-
-            # Reset the inactivity timer
-            M3MTA::Log->trace("Message found, resetting inactivity count");
-            $inactivity_count = 0;
-
-            # Process the message
-            eval {
-                M3MTA::Log->trace("Processing message");
-                $self->process_message($message);
-                M3MTA::Log->trace("Message processing complete");
-                $self->backend->dequeue($message->_id);
-                M3MTA::Log->debug("Dequeued message " . $message->id);
-            };
-            
-            if($@) {
-                M3MTA::Log->error("Error occured processing message: $@");
-            }
+            $message = $self->backend->poll;
         };
 
         if($@) {
+            # No message, so its not good but it wont do any damage
+            # We'll continue for the timeout increase to happen
             M3MTA::Log->error("Error occured polling for message: $@");
+        }
+
+        # Slowly increase the delay if nothing happens
+        if(!$message) {
+            $inactivity_count++;
+            M3MTA::Log->trace("No message found, inactivity count is: $inactivity_count");
+
+            # Every 10 undef results = 1 second extra
+            my $sleep = 5 + (int($inactivity_count / 10));
+            # But limit to 60 seconds
+            $sleep = 60 if $sleep > 60;
+
+            M3MTA::Log->trace("Sleeping for $sleep seconds");
+
+            sleep $sleep;
+            next;
+        }
+
+        # We've got a message so reset the inactivity timer
+        M3MTA::Log->trace("Message found, resetting inactivity count");
+        $inactivity_count = 0;
+
+        # Process the message
+        eval {
+            M3MTA::Log->trace("Processing message");
+            $self->process_message($message);
+            M3MTA::Log->trace("Message processing complete");
+        };
+            
+        if($@) {
+            # The message wasn't delivered, and its still queued as 'delivering'
+            M3MTA::Log->error("Error occured processing message: $@");
+
+            # We'll attempt to change its status and notify the postmaster
+            #$message->status('Held');
+            #push $message->attempts, M3MTA::Storage::Message::Attempt->new(
+            #    date => DateTime->now,
+            #    error => "Error occured processing message: $@\nMessage held for postmaster inspection",
+            #);
+            
+            # TODO update backend
+
+            next;
+        }
+
+        # The message was sent, try to dequeue it
+        eval {
+            $self->backend->dequeue($message->_id);
+            M3MTA::Log->debug("Dequeued message " . $message->id);
+        };
+
+        if($@) {
+            # Now we have a message which was delivered but got stuck in the queue
+            M3MTA::Log->debug("Failed to dequeue message " . $message->id);
+
+            # TODO attempt to notify the postmaster
+            # but we might not even have access to the queue....!
         }
     }
 }
