@@ -19,9 +19,11 @@ use IO::Socket::INET;
 use Email::Date::Format qw/email_date/;
 
 use M3MTA::Log;
+use M3MTA::Chaos;
 
 use M3MTA::Server::Backend::MDA;
 use M3MTA::Server::Backend::SMTP;
+use M3MTA::Storage::Message::Attempt;
 
 use M3MTA::Storage::Mailbox::Message::Content;
 
@@ -155,6 +157,7 @@ sub block {
         # Process the message
         eval {
             M3MTA::Log->trace("Processing message");
+            M3MTA::Chaos->monkey('process_message_failure');
             $self->process_message($message);
             M3MTA::Log->trace("Message processing complete");
         };
@@ -163,20 +166,57 @@ sub block {
             # The message wasn't delivered, and its still queued as 'delivering'
             M3MTA::Log->error("Error occured processing message: $@");
 
-            # We'll attempt to change its status and notify the postmaster
-            #$message->status('Held');
-            #push $message->attempts, M3MTA::Storage::Message::Attempt->new(
-            #    date => DateTime->now,
-            #    error => "Error occured processing message: $@\nMessage held for postmaster inspection",
-            #);
+            my $requeued = eval {
+                M3MTA::Log->debug("Attempting to requeue message");
+                $self->backend->dequeue($message->_id->{value});
+                M3MTA::Chaos->monkey('process_message_failure_requeue');
+                my $r = $self->backend->requeue($message);
+                return $r;
+            };
+
+            if($requeued) {
+                M3MTA::Log->debug("Message successfully requeued");
+                next;
+            }
+
+            # Otherwise put the message in 'Held' state
+            $message->status('Held');
+            push $message->attempts, M3MTA::Storage::Message::Attempt->new(
+                date => DateTime->now,
+                error => "Error occured processing message: $@\nMessage held for postmaster inspection",
+            );
+
+            # Update the backend
+            my $result = eval {
+                M3MTA::Chaos->monkey('process_message_held_failure');
+                return $self->backend->update($message);
+            };
             
-            # TODO update backend
+            if(!$result) {
+                M3MTA::Log->error("Error occured updating queue with held message");
+                
+                # Be helpful and store some extra info, even though we might
+                # never get to deliver the message
+                push $message->attempts, M3MTA::Storage::Message::Attempt->new(
+                    date => DateTime->now,
+                    error => "Failed to update message status to held",
+                );
+
+                # TODO try and store this on disk (or failing that, in memory)
+                # so we can come back to it later, we might just have a temporary problem
+                # (and see below)
+            }
+
+            # TODO notify someone?
+            # beware - sending emails here may result in a message explosion
+            # as new messages added to the queue also fail
 
             next;
         }
 
         # The message was sent, try to dequeue it
         eval {
+            M3MTA::Chaos->monkey('dequeue_failure');
             $self->backend->dequeue($message->_id);
             M3MTA::Log->debug("Dequeued message " . $message->id);
         };
@@ -185,8 +225,21 @@ sub block {
             # Now we have a message which was delivered but got stuck in the queue
             M3MTA::Log->debug("Failed to dequeue message " . $message->id);
 
-            # TODO attempt to notify the postmaster
-            # but we might not even have access to the queue....!
+            # Add some useful info
+            push $message->attempts, M3MTA::Storage::Message::Attempt->new(
+                date => DateTime->now,
+                error => "Failed to dequeue message " . $message->id,
+            );
+
+            # No point even trying to update the queue
+
+            # TODO try and store this on disk (or failing that, in memory)
+            # so we can come back to it later, we might just have a temporary problem
+            # (and see below)
+
+            # TODO notify someone?
+            # beware - sending emails here may result in a message explosion
+            # as new messages added to the queue also fail
         }
     }
 }

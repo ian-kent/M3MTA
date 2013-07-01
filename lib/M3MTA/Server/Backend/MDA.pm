@@ -42,6 +42,15 @@ sub requeue {
 
 #------------------------------------------------------------------------------    
 
+sub update {
+	my ($self, $email) = @_;
+
+	M3MTA::Log->fatal("update not implemented by backend");
+	die;
+}
+
+#------------------------------------------------------------------------------    
+
 sub dequeue {
 	my ($self, $email) = @_;
 

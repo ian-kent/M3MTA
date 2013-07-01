@@ -107,6 +107,20 @@ override 'poll' => sub {
 
 #------------------------------------------------------------------------------
 
+override 'update' => sub {
+    my ($self, $email) = @_;
+
+    my $result = $self->queue->update(
+        { "_id" => MongoDB::OID->new($email->_id->{value}) },
+        $email->to_json,
+    );
+
+    return 1 if $result->{ok};
+    return 0;
+};
+
+#------------------------------------------------------------------------------
+
 override 'requeue' => sub {
 	my ($self, $email, $error) = @_;
 
