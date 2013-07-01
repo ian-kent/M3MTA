@@ -75,7 +75,6 @@ override 'poll' => sub {
     # Look for queued emails
     my $cmd = Tie::IxHash->new(
         findAndModify => 'queue', # TODO configuration
-        remove => 1,
         query => {
             '$or' => [
                 { "status" => "Pending" },
@@ -84,7 +83,12 @@ override 'poll' => sub {
             "delivery_time" => {
                 '$lte' => DateTime->now,
             }
-        }
+        },
+        update => {
+            '$set' => {
+                'status' => 'Delivering'
+            }
+        },
     );
     M3MTA::Log->trace(Dumper $cmd);
 
@@ -176,7 +180,7 @@ override 'dequeue' => sub {
     M3MTA::Log->debug("Dequeueing e-mail with id: $id");
 	my $result = $self->queue->remove({ "_id" => MongoDB::OID->new($id) });
 
-    if($result->{ok}) {
+    if($result) {
         M3MTA::Log->debug("E-mail dequeued (enable TRACE to see result)");
     } else {
         M3MTA::Log->error("Failed to dequeue e-mail (enable TRACE to see result)");

@@ -7,6 +7,8 @@ M3MTA::Storage::Message - SMTP Message
 use Modern::Perl;
 use Moose;
 
+has '_id' => ( is => 'rw' );
+
 has 'created' => ( is => 'rw' );
 has 'to' 	=> ( is => 'rw', isa => 'ArrayRef', default => sub { [] } );
 has 'from'	=> ( is => 'rw' );
@@ -24,6 +26,7 @@ has 'filters' => ( is => 'rw' ); # TODO objects
 sub from_json {
 	my ($self, $json) = @_;
 
+	$self->_id($json->{_id});
 	$self->created($json->{created});
 	$self->to($json->{to});
 	$self->from($json->{from});

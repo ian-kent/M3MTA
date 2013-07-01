@@ -146,6 +146,8 @@ sub block {
                 M3MTA::Log->trace("Processing message");
                 $self->process_message($message);
                 M3MTA::Log->trace("Message processing complete");
+                $self->backend->dequeue($message->_id);
+                M3MTA::Log->debug("Dequeued message " . $message->id);
             };
             
             if($@) {
