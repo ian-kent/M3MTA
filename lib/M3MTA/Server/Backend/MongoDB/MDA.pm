@@ -139,8 +139,12 @@ override 'requeue' => sub {
         # Requeue for delivery
         my $rq_seconds = $rq->{after};
 
-        # TODO timezones
-        my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds));
+        # TODO timezone handling
+
+        # Just in case we get a large batch of retries, randomise
+        # the delivery time to spread the workload
+        my $offset = int(rand(120));
+        my $rq_date = DateTime->now->add(DateTime::Duration->new(seconds => $rq_seconds + $offset));
 
         $email->delivery_time($rq_date);
         $email->requeued(int($email->{requeued}) + 1);
