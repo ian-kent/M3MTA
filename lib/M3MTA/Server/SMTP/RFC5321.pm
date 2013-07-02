@@ -355,6 +355,7 @@ sub data {
 
         # Store the data
         $session->stash('envelope')->data($newdata . $data);
+        $session->stash('envelope')->helo($session->stash('helo'));
 
         my $email = M3MTA::Storage::Message->new->from_json($session->stash('envelope')->to_json);
         $email->id($message_id);

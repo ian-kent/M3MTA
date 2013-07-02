@@ -119,6 +119,7 @@ sub block {
 
 	while (1) {
         local $@ = undef;
+        my $error = undef;
 
         M3MTA::Log->trace("Polling for message");
 
@@ -165,12 +166,13 @@ sub block {
         if($@) {
             # The message wasn't delivered, and its still queued as 'delivering'
             M3MTA::Log->error("Error occured processing message: $@");
+            $error = $@;
 
             my $requeued = eval {
                 M3MTA::Log->debug("Attempting to requeue message");
                 $self->backend->dequeue($message->_id->{value});
                 M3MTA::Chaos->monkey('process_message_failure_requeue');
-                my $r = $self->backend->requeue($message);
+                my $r = $self->backend->requeue($message, "Message processing failed: $error");
                 return $r;
             };
 
@@ -191,15 +193,16 @@ sub block {
                 M3MTA::Chaos->monkey('process_message_held_failure');
                 return $self->backend->update($message);
             };
-            
+
             if(!$result) {
-                M3MTA::Log->error("Error occured updating queue with held message");
+                $error = $@;
+                M3MTA::Log->error("Error occured updating queue with held message: $error");
                 
                 # Be helpful and store some extra info, even though we might
                 # never get to deliver the message
                 push $message->attempts, M3MTA::Storage::Message::Attempt->new(
                     date => DateTime->now,
-                    error => "Failed to update message status to held",
+                    error => "Failed to update message status to held: $error",
                 );
 
                 # TODO try and store this on disk (or failing that, in memory)
@@ -222,13 +225,15 @@ sub block {
         };
 
         if($@) {
+            $error = $@;
+
             # Now we have a message which was delivered but got stuck in the queue
-            M3MTA::Log->debug("Failed to dequeue message " . $message->id);
+            M3MTA::Log->debug("Failed to dequeue message " . $message->id . ": $error");
 
             # Add some useful info
             push $message->attempts, M3MTA::Storage::Message::Attempt->new(
                 date => DateTime->now,
-                error => "Failed to dequeue message " . $message->id,
+                error => "Failed to dequeue message " . $message->id . ": $error",
             );
 
             # No point even trying to update the queue
@@ -249,9 +254,13 @@ sub block {
 sub process_message {
     my ($self, $message) = @_;
 
+    my $error = undef;
+
     M3MTA::Log->info("Processing message '" . $message->id . "' from '" . $message->from . "'");
 
     # Run filters
+    # TODO split filters into 'first time' and 'every time'
+    # atm all filters get run on every delivery attempt
     my $data = $message->data;
     $message->filters({});
     for my $filter (@{$self->filters}) {
@@ -321,7 +330,7 @@ sub process_message {
             M3MTA::Log->debug("No domain or mailbox entry found, attempting remote delivery with SMTP");
 
             # Attempt to send via SMTP
-            my $error = '';
+            $error = undef;
             my $envelope = M3MTA::Transport::Envelope->new(
                 from => M3MTA::Transport::Path->new->from_json($message->from),
                 to => [M3MTA::Transport::Path->new->from_json($to)], # TODO refactor to nicely support multiple to addresses to same host

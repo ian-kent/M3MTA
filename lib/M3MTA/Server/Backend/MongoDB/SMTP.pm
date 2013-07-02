@@ -176,6 +176,7 @@ override 'queue_message' => sub {
 
     $email->created(DateTime->now);
     $email->delivery_time(DateTime->now);    
+    $email->status('Pending');
     my $result = $self->util->add_to_queue($email);
 
     my @res;

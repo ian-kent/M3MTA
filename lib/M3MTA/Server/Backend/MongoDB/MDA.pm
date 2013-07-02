@@ -76,10 +76,7 @@ override 'poll' => sub {
     my $cmd = Tie::IxHash->new(
         findAndModify => 'queue', # TODO configuration
         query => {
-            '$or' => [
-                { "status" => "Pending" },
-                { "status" => undef },
-            ],
+            "status" => 'Pending',
             "delivery_time" => {
                 '$lte' => DateTime->now,
             }
