@@ -36,7 +36,12 @@ sub from_json {
 	$self->delivery_time($json->{delivery_time});
 	$self->requeued($json->{requeued});
 	$self->status($json->{status});
-	$self->filters($json->{filters});
+	$self->filters($json->{filters} // []);
+	if($json->{attempts}) {
+		for my $a (@{$json->{attempts}}) {
+			push $self->attempts, M3MTA::Storage::Message::Attempt->new->from_json($a);
+		}
+	}
 
 	return $self;
 }

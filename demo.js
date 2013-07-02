@@ -276,6 +276,7 @@ queue.insert({
         "data" : "Message-ID: <51A66796.5070801@" + mailhost + ">\r\nDate: Tue, 01 Jan 2013 00:00:00 +0000\r\nFrom: Postmaster <postmaster@" + mailhost + ">\r\nUser-Agent: M3MTA\r\nMIME-Version: 1.0\r\nTo: " + demouser + "@" + mailhost + "\r\nSubject: Welcome to M3MTA\r\nContent-Type: text/plain; charset=ISO-8859-1; format=flowed\r\nContent-Transfer-Encoding: 7bit\r\n\r\nThank you for trying M3MTA.\r\n\r\nYour M3MTA installation is now complete.\r\n\r\nFor more information, visit http://github.com/ian-kent/m3mta",
         "id" : "il1k2GGTG5Zg0L7RNdn@" + mailhost,
         "helo" : "[localhost]",
+        "status": "Pending",
         "delivery_time": ISODate("2013-01-01T00:00:00Z")
 });
 
