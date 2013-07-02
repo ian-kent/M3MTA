@@ -259,10 +259,7 @@ sub process_message {
     M3MTA::Log->info("Processing message '" . $message->id . "' from '" . $message->from . "'");
 
     # Run filters
-    # TODO split filters into 'first time' and 'every time'
-    # atm all filters get run on every delivery attempt
     my $data = $message->data;
-    $message->filters({});
     for my $filter (@{$self->filters}) {
         M3MTA::Log->debug("Calling filter $filter");
 
@@ -270,7 +267,7 @@ sub process_message {
         my $result = $filter->test($data, $message);
 
         # Store the result (so later filters can see it)
-        $message->filters->{ref($filter)} = $result;
+        $message->filters->{ref($filter)}->{result} = $result;
 
         # Copy back the data
         $data = $result->{data};
@@ -303,6 +300,7 @@ sub process_message {
 
         # Attempt to deliver locally
         my $dest = undef;
+        M3MTA::Chaos->monkey('local_delivery_failure');
         my $result = $self->backend->local_delivery($user, $domain, $content, \$dest);
 
         next if $result > 0;

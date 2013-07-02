@@ -19,7 +19,7 @@ has 'delivery_time' => ( is => 'rw' );
 has 'requeued' => ( is => 'rw', default => sub { 0 } );
 has 'attempts' => ( is => 'rw', default => sub { [] } );
 has 'status' => ( is => 'rw' );
-has 'filters' => ( is => 'rw' ); # TODO objects
+has 'filters' => ( is => 'rw', default => sub { {} } ); # TODO objects
 
 #------------------------------------------------------------------------------
 
@@ -36,7 +36,7 @@ sub from_json {
 	$self->delivery_time($json->{delivery_time});
 	$self->requeued($json->{requeued});
 	$self->status($json->{status});
-	$self->filters($json->{filters} // []);
+	$self->filters($json->{filters} // {});
 	if($json->{attempts}) {
 		for my $a (@{$json->{attempts}}) {
 			push $self->attempts, M3MTA::Storage::Message::Attempt->new->from_json($a);

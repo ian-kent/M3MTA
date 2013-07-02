@@ -21,6 +21,12 @@ sub BUILD {
 sub test {
 	my ($self, $content, $email) = @_;
 
+	if($email->filters->{ref($self)}->{checked}) {
+		return {
+			data => $content
+		};
+	}
+
 	if(!$content) {
 		M3MTA::Log->debug("SpamAssassin test not performed, message has no content");
 		return {
@@ -37,8 +43,12 @@ sub test {
 	M3MTA::Log->debug("Rewriting message content");
 	$content = $status->rewrite_mail;
 
+	$email->filters->{ref($self)}->{checked} = 1;
 	if($status->is_spam) {
-		M3MTA::Log->debug("Message is spam")
+		$email->filters->{ref($self)}->{is_spam} = 1;
+		M3MTA::Log->debug("Message is spam");
+	} else {
+		$email->filters->{ref($self)}->{is_spam} = 0;
 	}
 
 	$status->finish;

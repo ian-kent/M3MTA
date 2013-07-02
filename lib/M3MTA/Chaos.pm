@@ -8,6 +8,7 @@ our %monkeys = (
 	'dequeue_failure'		  			=> 0,
 	'process_message_failure_requeue' 	=> 0,
 	'process_message_held_failure'		=> 0,
+	'local_delivery_failure'			=> 0,
 );
 
 #------------------------------------------------------------------------------
@@ -17,7 +18,7 @@ sub monkey {
 
 	return if !$monkeys{$name};
 
-	die("Chaos monkey!") if rand(100) < $monkeys{$name};
+	die("Chaos monkey $name!") if rand(100) < $monkeys{$name};
 
 	return;
 }
