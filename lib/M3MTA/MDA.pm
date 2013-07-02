@@ -313,7 +313,6 @@ sub process_message {
 
         if($result == -1) {
             # was a local delivery, but user didn't exist
-            # TODO postmaster email?
             M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->from);
             $self->backend->notify($self->notification(
                 $message->from,
