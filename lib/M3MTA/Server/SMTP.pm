@@ -50,6 +50,10 @@ sub accept {
 
     M3MTA::Log->debug("Session accepted with id %s", $id);
 
+    # 5 minutes
+    # TODO timeouts from RFC5321
+    $stream->timeout(300);
+
     M3MTA::Server::SMTP::Session->new(
         smtp => $self, 
         stream => $stream,
