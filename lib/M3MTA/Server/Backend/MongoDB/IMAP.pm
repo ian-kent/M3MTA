@@ -62,7 +62,7 @@ override 'append_message' => sub {
 
     # Make the message for the store
     my $email = M3MTA::Storage::Mailbox::Message::Content->new->from_data($content);    
-    M3MTA::Log->debug(Dumper $email);
+    M3MTA::Log->trace(Dumper $email);
 
     my @flgs = split /\s/, $flags;
     push @flgs, '\\Recent';

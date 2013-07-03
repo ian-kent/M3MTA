@@ -250,8 +250,6 @@ sub append {
 		my $newcontent = $content;
 		$newcontent =~ s/\r/<CR>/g;
 		$newcontent =~ s/\n/<LF>/g;
-		print "[[[[[\n$newcontent\n]]]]]\n";
-		print "CURRENT LEN: " . length($content) . "; WAITING FOR $len\n";
 
 		if(length $content >= $len) {
 			$session->log("All data for message received");
