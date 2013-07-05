@@ -169,6 +169,8 @@ EOF
 		R: 250 sender ok
 		S: RCPT TO:<postmaster>
 		R: 250 postmaster recipient ok
+		S: RCPT TO:<postmaster\@[=host]>
+		R: 250 postmaster\@[=host] recipient ok
 		S: QUIT
 		R: 221 Bye.
 EOF
@@ -205,6 +207,19 @@ EOF
 		R: 250 Ok.
 		S: MAIL FROM:<"quoted name"\@somewhere.com>
 		R: 250 "quoted name"\@somewhere.com sender ok
+		S: QUIT
+		R: 221 Bye.
+EOF
+		# Can't test anything other than postmaster, needs test data in backend
+	, <<EOF
+		Valid recipients
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250 sender ok
+		S: RCPT TO:<postmaster\@[=host]>
+		R: 250 postmaster\@[=host] recipient ok
 		S: QUIT
 		R: 221 Bye.
 EOF
