@@ -88,7 +88,7 @@ EOF
 		S: MAIL FROM:<>
 		R: 250 sender ok
 		S: MAIL FROM:<>
-		R: 250 sender ok
+		R: 503 MAIL command already received
 		S: QUIT
 		R: 221 Bye.
 EOF
@@ -162,7 +162,6 @@ EOF
 EOF
 	, <<EOF
 		Postmaster addresses
-		Invalid recipients
 		R: 220 [host:"[^\\s]+"] M3MTA
 		S: HELO localhost
 		R: 250 Hello 'localhost'. I'm M3MTA
@@ -170,6 +169,42 @@ EOF
 		R: 250 sender ok
 		S: RCPT TO:<postmaster>
 		R: 250 postmaster recipient ok
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		RSET command
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250 sender ok
+		S: RSET
+		R: 250 Ok.
+		S: MAIL FROM:<>
+		R: 250 sender ok
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		Valid senders
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<somebody\@somewhere.com>
+		R: 250 somebody\@somewhere.com sender ok
+		S: RSET
+		R: 250 Ok.
+		S: MAIL FROM:<somebody\@anything>
+		R: 250 somebody\@anything sender ok
+		S: RSET
+		R: 250 Ok.
+		S: MAIL FROM:<postmaster\@anything>
+		R: 250 postmaster\@anything sender ok
+		S: RSET
+		R: 250 Ok.
+		S: MAIL FROM:<"quoted name"\@somewhere.com>
+		R: 250 "quoted name"\@somewhere.com sender ok
 		S: QUIT
 		R: 221 Bye.
 EOF

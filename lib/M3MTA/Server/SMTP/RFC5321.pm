@@ -200,7 +200,7 @@ sub ehlo {
 sub mail {
 	my ($self, $session, $data) = @_;
 
-	if($session->stash('envelope') && $session->stash('envelope')->from) {
+	if($session->stash('envelope') && defined $session->stash('envelope')->from) {
         $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "MAIL command already received");
         return;
     }
@@ -209,7 +209,7 @@ sub mail {
     delete $session->stash->{data};
     $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
-    if(my ($from, $params) = $data =~ /^From:<([^>]@[^>])*>(.*)$/i) {
+    if(my ($from, $params) = $data =~ /^From:<([^>]+@[^>]+)*>(.*)$/i) {
         if($params) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Unexpected parameters on MAIL command");
             return;
@@ -405,8 +405,9 @@ sub rset {
     my ($self, $session, $data) = @_;
 
     $session->buffer('');
-    $session->_stash({});
-    $session->email(M3MTA::Server::Envelope->new);
+    $session->_stash({
+        helo => $session->stash('helo')
+    });
     $session->state('ACCEPT');
 
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "Ok.");
