@@ -209,7 +209,7 @@ sub mail {
     delete $session->stash->{data};
     $session->stash(envelope => M3MTA::Transport::Envelope->new);
 
-    if(my ($from, $params) = $data =~ /^From:<([^>]*)>(.*)$/i) {
+    if(my ($from, $params) = $data =~ /^From:<([^>]@[^>])*>(.*)$/i) {
         if($params) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Unexpected parameters on MAIL command");
             return;
@@ -228,7 +228,7 @@ sub mail {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_ACTION_NOT_TAKEN}, "Not permitted to send from this address");
             return;
         }
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$path sender ok");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, ($path ? ($path . ' ') : '') . "sender ok");
         return;
     }
     $session->respond($M3MTA::Server::SMTP::ReplyCodes{SYNTAX_ERROR_IN_PARAMETERS}, "Invalid sender");
@@ -248,7 +248,8 @@ sub rcpt {
         return;
     }
 
-    if(my ($recipient) = $data =~ /^To:\s*<(.+)>$/i) {
+    if(my ($recipient, $pm) = $data =~ /^To:\s*<(?:(.+@.+)|(postmaster))>$/i) {
+        $recipient ||= $pm;
         my $path = M3MTA::Transport::Path->new->from_json($recipient);
         M3MTA::Log->debug("Checking delivery for $path");
 
@@ -280,7 +281,7 @@ sub rcpt {
 
         push @{$session->stash('envelope')->to}, $path;
         M3MTA::Log->debug("Delivery accepted");
-        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$1 recipient ok");
+        $session->respond($M3MTA::Server::SMTP::ReplyCodes{REQUESTED_MAIL_ACTION_OK}, "$recipient recipient ok");
         return;
     }
 

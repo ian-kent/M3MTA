@@ -38,7 +38,7 @@ my @tests = (
 		S: HELO localhost
 		R: 250 Hello 'localhost'. I'm M3MTA
 		S: MAIL FROM:<>
-		R: 250  sender ok
+		R: 250 sender ok
 		S: RCPT TO:<postmaster@[=host]>
 		R: 250 postmaster@[=host] recipient ok
 		S: DATA
@@ -86,9 +86,9 @@ EOF
 		S: HELO localhost
 		R: 250 Hello 'localhost'. I'm M3MTA
 		S: MAIL FROM:<>
-		R: 250  sender ok
+		R: 250 sender ok
 		S: MAIL FROM:<>
-		R: 250  sender ok
+		R: 250 sender ok
 		S: QUIT
 		R: 221 Bye.
 EOF
@@ -116,9 +116,60 @@ EOF
 		S: HELO localhost
 		R: 250 Hello 'localhost'. I'm M3MTA
 		S: MAIL FROM:<>
-		R: 250  sender ok
+		R: 250 sender ok
 		S: DATA
 		R: 503 send RCPT command first
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		Invalid senders
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<
+		R: 501 Invalid sender
+		S: MAIL FROM:>
+		R: 501 Invalid sender
+		S: MAIL FROM:Somebody
+		R: 501 Invalid sender
+		S: MAIL FROM:Somebody<somebody\@somewhere.com>
+		R: 501 Invalid sender
+		S: MAIL FROM:<somebody>
+		R: 501 Invalid sender
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		Invalid recipients
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250 sender ok
+		S: RCPT TO:<
+		R: 550 Invalid recipient
+		S: RCPT TO:>
+		R: 550 Invalid recipient
+		S: RCPT TO:Somebody
+		R: 550 Invalid recipient
+		S: RCPT TO:Somebody<somebody\@somewhere.com>
+		R: 550 Invalid recipient
+		S: RCPT TO:<somebody>
+		R: 550 Invalid recipient
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		Postmaster addresses
+		Invalid recipients
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250 sender ok
+		S: RCPT TO:<postmaster>
+		R: 250 postmaster recipient ok
 		S: QUIT
 		R: 221 Bye.
 EOF

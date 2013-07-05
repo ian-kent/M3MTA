@@ -41,6 +41,7 @@ sub run {
 
 	my @lines = split /\n/, $test;
 	my %vars = ();
+	my $lastsent = undef;
 	for my $line (@lines) {
 		print "Line: $line\n" if $DEBUG;
 		my ($a, $b) = $line =~ /\s*([SR]): (.*)/;
@@ -60,6 +61,7 @@ sub run {
 		if($a eq 'S') {
 			print "Sending data: $b\n" if $DEBUG;
 			print $socket "$b\r\n";
+			$lastsent = $b;
 		} elsif ($a eq 'R') {
 			print "Reading data...\n" if $DEBUG;
 			my $data = <$socket>;
@@ -76,7 +78,7 @@ sub run {
 			if($data =~ $re) {
 				ok(1, 'Data matches expected: ' . $b);
 			} else {
-				ok(0, 'Data [' . $data . '] didn\'t match expected: ' . $b);
+				ok(0, "Data [$data] didn't match expected [$b], in response to [$lastsent]");
 			}
 			
 		}

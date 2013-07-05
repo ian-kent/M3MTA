@@ -27,7 +27,7 @@ sub null {
 sub postmaster {
 	my ($self) = @_;
 
-	return 1 if $self->mailbox =~ /postmaster/i;
+	return 1 if $self->mailbox =~ /^postmaster$/i;
 	return 0;
 }
 
@@ -45,6 +45,8 @@ sub from_json {
 	}
 	if($email =~ /@/) {
 		($mailbox, $domain) = split /@/, $email, 2;
+	} else {
+		$mailbox = $email;
 	}
 
 	$self->relays(split /,/, $relays) if $relays;
