@@ -7,7 +7,7 @@ use IO::Socket::INET;
 my $DEBUG = 0;
 my $testrun = time . '-' . int(rand(100000));
 
-print "Test run: $testrun\n";
+note "Test run: $testrun";
 
 # for now we'll assume M3MTA is already running
 sub get_socket {
@@ -58,7 +58,12 @@ sub test {
 			}
 			print "Reading data: $data\n" if $DEBUG;
 			my $re = qr/$b/;
-			ok($data =~ $re, 'Data matches expected: ' . $b);
+			if($data =~ $re) {
+				ok(1, 'Data matches expected: ' . $b);
+			} else {
+				ok(0, 'Data [' . $data . '] didn\'t match expected: ' . $b);
+			}
+			
 		}
 	}
 	ok(1, 'Test finished');
@@ -97,13 +102,82 @@ EOF
 		S: QUIT
 		R: 221 Bye.
 EOF
+	, <<EOF
+		MAIL before HELO
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: MAIL FROM:<>
+		R: 503 bad sequence of commands
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		RCPT before HELO
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: RCPT TO:<postmaster@[=host]>
+		R: 503 bad sequence of commands
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		RCPT before MAIL
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: RCPT TO:<postmaster@[=host]>
+		R: 503 send MAIL command first
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		Multiple MAIL commands
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250  sender ok
+		S: MAIL FROM:<>
+		R: 250  sender ok
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		DATA before HELO
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: DATA
+		R: 503 bad sequence of commands
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		DATA before MAIL
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: DATA
+		R: 503 send MAIL command first
+		S: QUIT
+		R: 221 Bye.
+EOF
+	, <<EOF
+		DATA before RCPT
+		R: 220 [host:"[^\\s]+"] M3MTA
+		S: HELO localhost
+		R: 250 Hello 'localhost'. I'm M3MTA
+		S: MAIL FROM:<>
+		R: 250  sender ok
+		S: DATA
+		R: 503 send RCPT command first
+		S: QUIT
+		R: 221 Bye.
+EOF
 );
 
 for my $test (@tests) {
 	my ($name) = $test =~ /^\s*([^\r\n]*)/;
-	print "Test: $name\n";
 	$test =~ s/^\s*[^\r\n]*\s*[\r\n]?//;
-	test($test);
+	subtest $name => sub {
+		test($test);
+	};
 }
 
 done_testing();

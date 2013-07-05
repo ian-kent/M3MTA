@@ -295,6 +295,10 @@ sub data {
 
 	if($session->state ne 'DATA') {
 		# Called from DATA command
+        if(!$session->stash('envelope') || !defined $session->stash('envelope')->from) {
+            $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send MAIL command first");
+            return;
+        }
 		if(scalar @{$session->stash('envelope')->to} == 0) {
             $session->respond($M3MTA::Server::SMTP::ReplyCodes{BAD_SEQUENCE_OF_COMMANDS}, "send RCPT command first");
             return;
