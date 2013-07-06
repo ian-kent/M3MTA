@@ -218,16 +218,18 @@ sub block {
         }
 
         # The message was sent, try to dequeue it
-        if(scalar @{$message->to} > 0) {
-            M3MTA::Log->debug("Message still has recipients, updating in backend");
-            $self->update($message);
-        }
-
         eval {
             M3MTA::Chaos->monkey('dequeue_failure');
             $self->backend->dequeue($message->_id);
             M3MTA::Log->debug("Dequeued message " . $message->id);
         };
+
+        # Check if the message still has recipients
+        if(scalar @{$message->to} > 0) {
+            M3MTA::Log->debug("Message still has recipients, requeuing");
+            $self->backend->requeue($message, "Message still has recipients");
+            return;
+        }
 
         if($@) {
             $error = $@;
