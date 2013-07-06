@@ -218,6 +218,11 @@ sub block {
         }
 
         # The message was sent, try to dequeue it
+        if(scalar @{$message->to} > 0) {
+            M3MTA::Log->debug("Message still has recipients, updating in backend");
+            $self->update($message);
+        }
+
         eval {
             M3MTA::Chaos->monkey('dequeue_failure');
             $self->backend->dequeue($message->_id);
@@ -256,7 +261,8 @@ sub process_message {
 
     my $error = undef;
 
-    M3MTA::Log->info("Processing message '" . $message->id . "' from '" . $message->from . "'");
+    my $rcount = scalar @{$message->to};
+    M3MTA::Log->info("Processing message '" . $message->id . "' from '" . $message->from . "' to $rcount recipients");
 
     # Run filters
     my $data = $message->data;
@@ -286,95 +292,81 @@ sub process_message {
     my $content = M3MTA::Storage::Mailbox::Message::Content->new->from_data($data);
 
     # Try and send to all recipients
-    for my $to (@{$message->to}) {
-        my ($user, $domain) = split /@/, $to;
-        M3MTA::Log->debug("Recipient '$user'\@'$domain'");
+    my @recipients = @{$message->to};
+    for my $to (@recipients) {
+        my $dest = $to;
+        M3MTA::Log->debug("Recipient '$to'");
 
-        if(lc $user eq 'postmaster') {
+        if($to->postmaster) {
             # we've got a postmaster address, resolve it
-            my $postmaster = $self->backend->get_postmaster($domain);
+            my $postmaster = $self->backend->get_postmaster($to->domain);
             M3MTA::Log->debug("Got postmaster address: $postmaster");
-            ($user, $domain) = split /@/, $postmaster;
-            M3MTA::Log->debug("New recipient is '$user'\@'$domain'");
+            $dest = $postmaster;
         }
 
         # Attempt to deliver locally
-        my $dest = undef;
         M3MTA::Chaos->monkey('local_delivery_failure');
-        my $result = $self->backend->local_delivery($user, $domain, $content, \$dest);
+        my $result = $self->backend->local_delivery($dest, $content, \$dest);
 
-        next if $result > 0;
-
-        if($result == -3) {
-            M3MTA::Log->debug("Local delivery resulted in external alias");
-            $to = $dest;
-            $result = 0; # Attempt external delivery below
+        if($result == $M3MTA::Server::Backend::MDA::SUCCESSFUL) {
+            # Local delivery was successful
+            M3MTA::Log->debug("Local delivery was successful, removing recipient $to");
+            $message->remove_recipient($to);
+            next;
         }
 
-        if($result == -1) {
+        if($result == $M3MTA::Server::Backend::MDA::USER_NOT_FOUND) {
             # was a local delivery, but user didn't exist
-            M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->from);
-            $self->backend->notify($self->notification(
-                $message->from,
-                "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
-                "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
-            ));
+            if($message->from) {
+                M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->from);
+                $self->backend->notify($self->notification(
+                    $message->from,
+                    "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
+                    "Your message to $to could not be delivered.\r\n\r\nMailbox not recognised."
+                ));
+            } else {
+                M3MTA::Log->debug("Local delivery but no mailbox found, null return path, no notification sent");
+            }
+
+            $message->remove_recipient($to);
+            next;
         }
 
-        if($result == 0) {
-            # We wont bother checking for relay settings, SMTP delivery should have done that already
-            # So, anything which doesn't get caught above, we'll relay here
-            M3MTA::Log->debug("No domain or mailbox entry found, attempting remote delivery with SMTP");
+        if($result == $M3MTA::Server::Backend::MDA::EXTERNAL_ALIAS) {
+            M3MTA::Log->debug("Local delivery resulted in external alias");
+            # Fall-through to remote delivery
+        }
 
-            # Attempt to send via SMTP
-            $error = undef;
-            my $envelope = M3MTA::Transport::Envelope->new(
-                from => M3MTA::Transport::Path->new->from_json($message->from),
-                to => [M3MTA::Transport::Path->new->from_json($to)], # TODO refactor to nicely support multiple to addresses to same host
-                data => $content->to_data,
-            );
-            my $res = M3MTA::Client::SMTP->send($envelope, \$error);
+        # We wont bother checking for relay settings, SMTP delivery should have done that already
+        # So, anything which doesn't get caught above, we'll relay here
+        M3MTA::Log->debug("No domain or mailbox entry found, attempting remote delivery with SMTP");
 
-            if($res == -1) {
-                # retryable error, so re-queue    
-                # but change the to address first, we've got an error
-                # so we need to split this user off from the rest
-                my $orig_to = $message->to;
-                $message->to([$to]);
-                $res = $self->backend->requeue($message, $error);
-                $message->to($orig_to);
+        # Attempt to send via SMTP (using $dest, notifications use $to which isn't affected by aliasing)
+        $error = undef;
+        my $envelope = M3MTA::Transport::Envelope->new(
+            from => M3MTA::Transport::Path->new->from_json($message->from),
+            to => [M3MTA::Transport::Path->new->from_json($dest)],
+            data => $content->to_data,
+        );
+        my $res = M3MTA::Client::SMTP->send($envelope, \$error);
 
-                if($res == 1) {
-                    M3MTA::Log->info("Remote delivery failed with retryable error, message re-queued, no notification sent");
-                } elsif ($res == 2) {
-                    M3MTA::Log->info("Remote delivery failed with retryable error, message re-queued, notification sent to " . $message->{from});
-                    $self->backend->notify($self->notification(
-                        $message->from,
-                        "Message delivery delayed for " . $message->id . ": " . $content->headers->{Subject},
-                        "Your message to $to has been delayed.\r\n\r\nUnable to contact remote mailservers: $error"
-                    ));
-                } else {
-                    # TODO notification?
-                    M3MTA::Log->info("Remote delivery failed with retryable error, requeue also failed, message dropped, notification sent to " . $message->{from});
-                    $self->backend->notify($self->notification(
-                        $message->from,
-                        "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
-                        "Your message to $to could not be delivered - too many retries.\r\n\r\nTemporary delivery failure: $error"
-                    ));
-                }
-            } elsif ($res == -2 || $res == -3) {
-                # permanent failure
-                # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
-                M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
-                # Causes infinite mail looping if message is from postmaster
-                #self->backend->notify($self->notification(
-                #   $message->from,
-                #   "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
-                #   "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
-                #);
-            } elsif ($res == 1) {
-                M3MTA::Log->info("Message relayed using SMTP");
-            }
+        if($res == -1) {
+            # all hosts timed out - requeueable
+            M3MTA::Log->info("All hosts timed out, delivery failed, message re-queued");
+        } elsif ($res == -2 || $res == -3) {
+            # permanent failure
+            # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
+            M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
+            $message->remove_recipient($to);
+            # Causes infinite mail looping if message is from postmaster
+            #self->backend->notify($self->notification(
+            #   $message->from,
+            #   "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
+            #   "Your message to $dest could not be delivered.\r\n\r\nPermanent delivery failure: $error"
+            #);
+        } elsif ($res == 1) {
+            $message->remove_recipient($to);
+            M3MTA::Log->info("Message relayed using SMTP");
         }
     }
 }

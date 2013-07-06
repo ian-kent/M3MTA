@@ -23,12 +23,31 @@ has 'filters' => ( is => 'rw', default => sub { {} } ); # TODO objects
 
 #------------------------------------------------------------------------------
 
+sub add_recipient {
+	my ($self, $to) = @_;
+
+	return push $self->to, M3MTA::Transport::Path->new->from_json($to);
+}
+
+#------------------------------------------------------------------------------
+
+sub remove_recipient {
+	my ($self, $to) = @_;
+
+	my @recipients = grep { $_ if $_->to_json ne $to->to_json } @{$self->to};
+	return $self->to(\@recipients);
+}
+
+#------------------------------------------------------------------------------
+
 sub from_json {
 	my ($self, $json) = @_;
 
 	$self->_id($json->{_id});
 	$self->created($json->{created});
-	$self->to($json->{to});
+	for my $to (@{$json->{to}}) {
+		push $self->to, M3MTA::Transport::Path->new->from_json($to);
+	}
 	$self->from($json->{from});
 	$self->data($json->{data});
 	$self->id($json->{id});
@@ -56,9 +75,14 @@ sub to_json {
 		push $attempts, $attempt->to_json;
 	}
 
+	my $to = [];
+	for my $r (@{$self->to}) {
+		push $to, $r->to_json;
+	}
+
 	return {
 		created => $self->created,
-		to => $self->to,
+		to => $to,
 		from => $self->from,
 		data => $self->data,
 		id => $self->id,

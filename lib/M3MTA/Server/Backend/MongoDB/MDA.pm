@@ -58,11 +58,11 @@ override 'get_postmaster' => sub {
     if(!$d || !$d->postmaster) {
         # use a default address
         M3MTA::Log->debug("Postmaster address not found, using default postmaster\@$domain");
-        return "postmaster\@$domain";
+        return M3MTA::Transport::Path->new->from_json("postmaster\@$domain");
     }
 
     M3MTA::Log->debug("Using postmaster address " . $d->postmaster);
-    return $d->postmaster;
+    return M3MTA::Transport::Path->new->from_json($d->postmaster);
 };
 
 #------------------------------------------------------------------------------
@@ -209,9 +209,10 @@ override 'dequeue' => sub {
 #------------------------------------------------------------------------------
 
 override 'local_delivery' => sub {
-    my ($self, $user, $domain, $email, $dest) = @_;
+    my ($self, $to, $email, $dest) = @_;
 
     # Get the local mailbox
+    my ($user, $domain) = split /@/, $to;
     my $mailbox = $self->util->get_mailbox($user, $domain);
 
     if($mailbox && ref($mailbox) =~ /::Alias$/) {

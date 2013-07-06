@@ -117,8 +117,7 @@ sub add_to_mailbox {
 
 	# TODO chunked/oversize messages
 
-	M3MTA::Log->debug(Dumper $mailbox);
-    M3MTA::Log->debug("Local mailbox found, attempting GridFS delivery");
+	M3MTA::Log->trace(Dumper $mailbox);
 
     $path //= $mailbox->delivery->path // 'INBOX';
     M3MTA::Log->debug("Delivering message to: $path");

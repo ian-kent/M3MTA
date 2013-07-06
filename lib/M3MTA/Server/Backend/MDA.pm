@@ -16,7 +16,7 @@ Readonly our $SUCCESSFUL => 1;
 #------------------------------------------------------------------------------
 
 sub local_delivery {
-    my ($self, $user, $domain, $email) = @_;
+    my ($self, $to, $email) = @_;
 
     M3MTA::Log->fatal("local_delivery not implemented by backend");
     die;
