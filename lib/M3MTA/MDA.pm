@@ -105,7 +105,7 @@ EOF
     $msg->helo('localhost');
     $msg->id($msg_id);
     $msg->from($msg_from);
-    $msg->to([$to]);
+    $msg->to([M3MTA::Transport::Path->new->from_json($to)]);
     $msg->delivery_time($msg_date);
     return $msg;
 }
