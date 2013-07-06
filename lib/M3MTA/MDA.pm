@@ -366,11 +366,12 @@ sub process_message {
                 # permanent failure
                 # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
                 M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
-                $self->backend->notify($self->notification(
-                    $message->from,
-                    "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
-                    "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
-                ));
+                # Causes infinite mail looping if message is from postmaster
+                #self->backend->notify($self->notification(
+                #   $message->from,
+                #   "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
+                #   "Your message to $to could not be delivered.\r\n\r\nPermanent delivery failure: $error"
+                #);
             } elsif ($res == 1) {
                 M3MTA::Log->info("Message relayed using SMTP");
             }
