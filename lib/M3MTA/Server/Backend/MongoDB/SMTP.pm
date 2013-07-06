@@ -79,12 +79,6 @@ override 'can_user_send' => sub {
     }
 
     # Local mailbox found
-    if(ref($mailbox) =~ /::Alias$/) {
-        # TODO add authentication to aliases for SMTP purposes
-        M3MTA::Log->debug("Alias found, not permitted to send");
-        return $M3MTA::Server::Backend::SMTP::REJECTED;
-    }
-
     if($session->user && $session->user->username && $session->user->username eq $mailbox->username) {
         # user is authenticated against this mailbox
         M3MTA::Log->debug("Local mailbox found and user is authenticated");

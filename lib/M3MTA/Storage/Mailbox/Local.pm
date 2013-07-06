@@ -8,8 +8,6 @@ use M3MTA::Storage::Mailbox::Size;
 use M3MTA::Storage::Mailbox::Delivery;
 use M3MTA::Storage::Mailbox::Store;
 
-has 'username' => ( is => 'rw', isa => 'Str'  );
-has 'password' => ( is => 'rw', isa => 'Str'  );
 has 'relay'	   => ( is => 'rw', isa => 'Bool' );
 has 'size'	   => (
 	is => 'rw',
@@ -34,8 +32,6 @@ has 'store' => (
 after 'from_json' => sub {
 	my ($self, $json) = @_;
 
-	$self->username($json->{username});
-	$self->password($json->{password});
 	$self->relay($json->{relay});
 	$self->size(M3MTA::Storage::Mailbox::Size->new->from_json($json->{size}));
 	$self->delivery(M3MTA::Storage::Mailbox::Delivery->new->from_json($json->{delivery}));
@@ -55,8 +51,6 @@ around 'to_json' => sub {
 
 	return {
 		%$json,
-		username => $self->username,
-		password => $self->password,
 		relay => $self->relay,
 		size => $self->size->to_json,
 		delivery => $self->delivery->to_json,

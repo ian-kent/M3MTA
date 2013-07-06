@@ -324,7 +324,6 @@ sub data {
         my $data = $session->stash('data');
         $data =~ s/\r\n\.\r\n$//s;
 
-        # TODO
         # check total size of data against global maximum message size
         # this is an rfc0821 thing, nothing to do with SIZE
         if(length $data > $session->smtp->config->{maximum_size}) {
