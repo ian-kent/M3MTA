@@ -6,7 +6,7 @@ use Moose;
 use overload
 	'""' => sub {
 		my ($self) = @_;
-		return $self->to_json;
+		return $self->mailbox . ($self->domain ? '@' . $self->domain : '');
 	};
 
 #------------------------------------------------------------------------------
@@ -14,6 +14,8 @@ use overload
 has 'relays' => ( is => 'rw', isa => 'ArrayRef', default => sub { [] } );
 has 'mailbox' => ( is => 'rw', isa => 'Str' );
 has 'domain' => ( is => 'rw', isa => 'Str' );
+
+has 'params' => ( is => 'rw', isa => 'HashRef', default => sub { {} } );
 
 #------------------------------------------------------------------------------
 
@@ -33,15 +35,14 @@ sub postmaster {
 
 #------------------------------------------------------------------------------
 
-sub from_json {
-	my ($self, $json) = @_;
+sub from_text {
+	my ($self, $email) = @_;
 
-	my $email = $json;
 	my $relays = undef;
 	my $mailbox = undef;
 	my $domain = undef;
-	if($json =~ /:/) {
-		($relays, $email) = split /:/, $json, 2;
+	if($email =~ /:/) {
+		($relays, $email) = split /:/, $email, 2;
 	}
 	if($email =~ /@/) {
 		($mailbox, $domain) = split /@/, $email, 2;
@@ -58,25 +59,28 @@ sub from_json {
 
 #------------------------------------------------------------------------------
 
+sub from_json {
+	my ($self, $json) = @_;
+
+	$self->relays($json->{relays});
+	$self->mailbox($json->{mailbox});
+	$self->domain($json->{domain});
+	$self->params($json->{params});
+
+	return $self;
+}
+
+#------------------------------------------------------------------------------
+
 sub to_json {
 	my ($self) = @_;
 
-	my $relays = join ',', @{$self->relays};
-
-	my $path = '';
-	if($relays) {
-		$path .= "$relays:";
-	}
-
-	if($self->mailbox) {
-		$path .= $self->mailbox;
-	}
-
-	if($self->domain) {
-		$path .= "\@" . $self->domain;
-	}
-
-	return $path;
+	return {
+		relays => $self->relays,
+		mailbox => $self->mailbox,
+		domain => $self->domain,
+		params => $self->params,
+	};
 }
 
 #------------------------------------------------------------------------------

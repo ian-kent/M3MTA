@@ -104,6 +104,7 @@ sub get_mailbox {
 sub add_to_queue {
 	my ($self, $email) = @_;
 
+print Data::Dumper::Dumper $email;
 	my $result = $self->backend->queue->insert($email->to_json);
 
 	# TODO proper check?

@@ -65,6 +65,13 @@ sub register {
             return 1;
 	    }
 
+        # Create new param stores
+        if($cmd eq 'MAIL') {
+            $session->stash('mail_params' => {});
+        } elsif ($cmd eq 'RCPT') {
+            $session->stash('rcpt_params' => {});
+        }
+
 	    # Let the command continue
         return 1;
 	});
@@ -215,8 +222,12 @@ sub mail {
             return;
         }
 
-        my $path = M3MTA::Transport::Path->new->from_json($from);
+        my $path = M3MTA::Transport::Path->new->from_text($from);
+        for my $param (keys %{$session->stash('mail_params')}) {
+            $path->params->{$param} = $session->stash('mail_params')->{$param};
+        }
         $session->stash('envelope')->from($path);
+
         if($path->null) {
             M3MTA::Log->debug("Message has null reverse-path");
         } 
@@ -250,7 +261,10 @@ sub rcpt {
 
     if(my ($recipient, $pm) = $data =~ /^To:\s*<(?:(.+@.+)|(postmaster))>$/i) {
         $recipient ||= $pm;
-        my $path = M3MTA::Transport::Path->new->from_json($recipient);
+        my $path = M3MTA::Transport::Path->new->from_text($recipient);
+        for my $param (keys %{$session->stash('rcpt_params')}) {
+            $path->params->{$param} = $session->stash('rcpt_params')->{$param};
+        }
         M3MTA::Log->debug("Checking delivery for $path");
 
         if($path->postmaster) {
@@ -363,6 +377,7 @@ sub data {
 
         my $email = M3MTA::Storage::Message->new->from_json($session->stash('envelope')->to_json);
         $email->id($message_id);
+        print Data::Dumper::Dumper $email;
         $session->respond($session->smtp->queue_message($email));
 
         $session->state('FINISHED');

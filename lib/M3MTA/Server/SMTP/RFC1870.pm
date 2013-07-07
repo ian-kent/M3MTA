@@ -106,7 +106,7 @@ sub mail {
         $session->log("Using MAIL from RFC1870, size provided [$size], remaining data [$data]");
 
         # Stash the size for the rest of the session
-        $session->stash(rfc1870_size => $size);
+        $session->stash('mail_params')->{SIZE} = $size;
 
         # Compare against maximum size
         my $max_size = $session->smtp->config->{maximum_size} // 0;
@@ -150,12 +150,12 @@ sub rcpt {
             $session->log("Mailbox is list, not checking size");
         } else {
             if($mailbox && $mailbox->size->maximum > 0) {
-                if($session->stash('rfc1870_size') > $mailbox->size->maximum) {
+                if($session->stash('mail_params')->{SIZE} > $mailbox->size->maximum) {
                     # We'll return a permanent failure, on the basis that the users
                     # maximum mailbox size is unlikely to change before message expiry
                     $session->respond($M3MTA::Server::SMTP::ReplyCodes{EXCEEDED_STORAGE_ALLOCATION}, "Message size exceeds mailbox size");
                     return;
-                } elsif (!$mailbox->size->ok($session->stash('rfc1870_size'))) {
+                } elsif (!$mailbox->size->ok($session->stash('mail_params')->{SIZE})) {
                     # Could be a temporary failure, i.e. user has too many messages
                     $session->respond($M3MTA::Server::SMTP::ReplyCodes{INSUFFICIENT_SYSTEM_STORAGE}, "Maximum mailbox size exceeded");
                     return;

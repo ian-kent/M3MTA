@@ -26,7 +26,7 @@ has 'filters' => ( is => 'rw', default => sub { {} } ); # TODO objects
 sub add_recipient {
 	my ($self, $to) = @_;
 
-	return push $self->to, M3MTA::Transport::Path->new->from_json($to);
+	return push $self->to, M3MTA::Transport::Path->new->from_text($to);
 }
 
 #------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ sub add_recipient {
 sub remove_recipient {
 	my ($self, $to) = @_;
 
-	my @recipients = grep { $_ if $_->to_json ne $to->to_json } @{$self->to};
+	my @recipients = grep { $_ if "$_" ne "$to" } @{$self->to};
 	return $self->to(\@recipients);
 }
 
@@ -48,7 +48,7 @@ sub from_json {
 	for my $to (@{$json->{to}}) {
 		push $self->to, M3MTA::Transport::Path->new->from_json($to);
 	}
-	$self->from($json->{from});
+	$self->from(M3MTA::Transport::Path->new->from_json($json->{from}));
 	$self->data($json->{data});
 	$self->id($json->{id});
 	$self->helo($json->{helo});
@@ -83,7 +83,7 @@ sub to_json {
 	return {
 		created => $self->created,
 		to => $to,
-		from => $self->from,
+		from => $self->from->to_json,
 		data => $self->data,
 		id => $self->id,
 		helo => $self->helo,

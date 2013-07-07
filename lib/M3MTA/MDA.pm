@@ -104,7 +104,7 @@ EOF
     $msg->data($msg_data);
     $msg->helo('localhost');
     $msg->id($msg_id);
-    $msg->from($msg_from);
+    $msg->from(M3MTA::Transport::Path->new->from_text($msg_from));
     $msg->to([M3MTA::Transport::Path->new->from_json($to)]);
     $msg->delivery_time($msg_date);
     return $msg;
@@ -346,7 +346,7 @@ sub process_message {
         # Attempt to send via SMTP (using $dest, notifications use $to which isn't affected by aliasing)
         $error = undef;
         my $envelope = M3MTA::Transport::Envelope->new(
-            from => M3MTA::Transport::Path->new->from_json($message->from),
+            from => M3MTA::Transport::Path->new->from_text($message->from),
             to => [M3MTA::Transport::Path->new->from_json($dest)],
             data => $content->to_data,
         );

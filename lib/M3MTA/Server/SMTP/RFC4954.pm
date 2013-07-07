@@ -120,14 +120,14 @@ sub mail {
         }
 
         # Stash the auth (may now be <> if client isn't trusted)
-        $session->stash(rfc4954_mailbox => $mailbox);
+        $session->stash('mail_params')->{'AUTH'} = "<$mailbox>";
     } else {
         # If client is authenticated, store AUTH=<value> for it
         # TODO add configuration option
         if($session->user) {
             my $mailbox = $session->user->mailbox . '@' . $session->user->domain;
             $session->log("No auth provided, applying AUTH=<$mailbox> for MAIL command");
-            $session->stash(rfc4954_mailbox => $mailbox);
+            $session->stash('mail_params')->{'AUTH'} = "<$mailbox>";
         }
     }
 

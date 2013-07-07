@@ -14,7 +14,7 @@ sub test {
 
 	M3MTA::Log->debug("Testing message content with Postmaster");
 
-	if($email->from ne $self->mda->config->{filter_config}->{"M3MTA::MDA::Postmaster"}->{superuser}) {
+	if("$email->from" ne $self->mda->config->{filter_config}->{"M3MTA::MDA::Postmaster"}->{superuser}) {
 		M3MTA::Log->debug("Sender is not a superuser");
 		return {
 			data => $content
