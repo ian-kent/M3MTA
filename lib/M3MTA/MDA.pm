@@ -355,8 +355,6 @@ sub process_message {
 
         # Attempt to send via SMTP (using $dest, notifications use $to which isn't affected by aliasing)
         $error = undef;
-        print Data::Dumper::Dumper($message->from);
-        print Data::Dumper::Dumper($dest);
         my $envelope = M3MTA::Transport::Envelope->new(
             from => $message->from,
             to => [$dest],
