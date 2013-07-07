@@ -58,11 +58,11 @@ override 'get_postmaster' => sub {
     if(!$d || !$d->postmaster) {
         # use a default address
         M3MTA::Log->debug("Postmaster address not found, using default postmaster\@$domain");
-        return M3MTA::Transport::Path->new->from_json("postmaster\@$domain");
+        return M3MTA::Transport::Path->new->from_text("postmaster\@$domain");
     }
 
     M3MTA::Log->debug("Using postmaster address " . $d->postmaster);
-    return M3MTA::Transport::Path->new->from_json($d->postmaster);
+    return M3MTA::Transport::Path->new->from_text($d->postmaster);
 };
 
 #------------------------------------------------------------------------------

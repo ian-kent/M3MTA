@@ -315,8 +315,8 @@ sub process_message {
             M3MTA::Log->debug("Local delivery was successful, removing recipient $to");
             $message->remove_recipient($to);
 
-            # RFC3461 5.2.3(abc) - 'delivered' DSN if NOTIFY=SUCCESS | !NOTIFY
-            if(!$message->from->null && (!$to->params->{NOTIFY} || $to->params->{NOTIFY} =~ /SUCCESS/)) {
+            # RFC3461 5.2.3(abc) - 'delivered' DSN if NOTIFY=SUCCESS
+            if(!$message->from->null && $to->params->{NOTIFY} && $to->params->{NOTIFY} =~ /SUCCESS/) {
                 $self->backend->notify($self->notification(
                     $message->from,
                     "Message delivered for " . $message->id . ": " . $content->headers->{Subject},
@@ -355,12 +355,18 @@ sub process_message {
 
         # Attempt to send via SMTP (using $dest, notifications use $to which isn't affected by aliasing)
         $error = undef;
+        print Data::Dumper::Dumper($message->from);
+        print Data::Dumper::Dumper($dest);
         my $envelope = M3MTA::Transport::Envelope->new(
-            from => M3MTA::Transport::Path->new->from_text($message->from),
-            to => [M3MTA::Transport::Path->new->from_json($dest)],
+            from => $message->from,
+            to => [$dest],
             data => $content->to_data,
         );
         my $res = M3MTA::Client::SMTP->send($envelope, \$error);
+
+        # TODO get extension status from send (use $res as hash?)
+        # so we can handle some extensions here, like DSN requested
+        # when remote SMTP doesn't support it
 
         if($res == -1) {
             # all hosts timed out - requeueable

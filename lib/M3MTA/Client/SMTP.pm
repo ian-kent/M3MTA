@@ -18,19 +18,18 @@ sub send {
 	my $to = $envelope->to->[0];
 
 	M3MTA::Log->debug("Relaying message to: $to");
-    my ($user, $domain) = $to =~ /(.*)@(.*)/;
 
     # DNS lookup
     my $dns = new Net::DNS::Resolver;
-    my $mx = $dns->query( $domain, 'MX' );
+    my $mx = $dns->query( $to->domain, 'MX' );
 
     if(!$mx) {
     	M3MTA::Log->debug("No MX record found, looking up A record");
 
-    	my $a = $dns->query( $domain, 'A' );
+    	my $a = $dns->query( $to->domain, 'A' );
     	if(!$a) {
-	        $$error = "No MX or A record found for domain $domain";
-	        M3MTA::Log->debug("Message relay failed, no MX or A record for domain $domain");
+	        $$error = "No MX or A record found for domain " . $to->domain;
+	        M3MTA::Log->debug("Message relay failed, no MX or A record for domain " . $to->domain);
 	        return -2; # permanent failure, no hostname
     	}
 
@@ -66,7 +65,7 @@ sub send {
     }
 
     if(scalar @ordered == 0) {
-    	$$error = "No destination hosts found for domain $domain";
+    	$$error = "No destination hosts found for domain " . $to->domain;
         M3MTA::Log->debug("Message relay failed, no valid destination hosts found");
         return -3; # permanent failure, no hostname after filter
     }
@@ -83,25 +82,73 @@ sub send {
 
         if($socket) {
 	        my $state = 'connect';
+            my $dsn = 0;
+            my $size = 0;
+            my $auth = 0;
 	        while (my $data = <$socket>) {
 	            my ($cmd, $wait, $arg) = $data =~ /(\d+)(-|\s)(.*)/;
 	            $wait = '' if $wait eq ' ';
 
 	            M3MTA::Log->trace("RECD: data[$data], cmd[$cmd], wait[$wait], arg[$arg]");
 
+                # In helo mode (after EHLO), see if we have a 220 line
+                $dsn = 1 if $state eq 'helo' && $arg =~ /DSN/;
+                $size = 1 if $state eq 'helo' && $arg =~ /SIZE/;
+                $auth = 1 if $state eq 'helo' && $arg =~ /AUTH/;
+                if($state eq 'helo' && !$wait && $cmd =~ /250/) {
+                    $state = 'ehlo';
+                }
+
+                # If we have, either the state has changed (and we sent MAIL)
+                # or state is still 'helo' and we send a HELO instead
+
 	            if($wait) {
 	                M3MTA::Log->trace("Waiting for next line");
 	            } elsif ($state eq 'connect') {
-	                M3MTA::Log->trace("SENT: EHLO $hostname");
-	                print $socket "EHLO $hostname\r\n";
+                    M3MTA::Log->trace("SENT: EHLO $hostname");
+                    print $socket "EHLO $hostname\r\n";
+                    $state = 'helo';
+                } elsif ($state eq 'helo') {
+	                M3MTA::Log->trace("SENT: HELO $hostname");
+	                print $socket "HELO $hostname\r\n";
 	                $state = 'ehlo';
 	            } elsif ($state eq 'ehlo') {
-	                M3MTA::Log->trace("SENT: MAIL FROM:<" . $envelope->from . ">");
-	                print $socket "MAIL FROM:<" . $envelope->from . ">\r\n";
+                    my $f = $envelope->from;
+                    $f = "<$f>";
+                    if($size) {
+                        if($envelope->from->params->{SIZE}) {
+                            $f .= " SIZE=" . $envelope->from->params->{SIZE};
+                        }
+                    }
+                    if($auth) {
+                        if($envelope->from->params->{AUTH}) {
+                            $f .= " AUTH=" . $envelope->from->params->{AUTH};
+                        }
+                    }
+                    if($dsn) {
+                        if($envelope->from->params->{ENVID}) {
+                            $f .= " ENVID=" . $envelope->from->params->{ENVID};
+                        }
+                        if($envelope->from->params->{RET}) {
+                            $f .= " RET=" . $envelope->from->params->{RET};
+                        }
+                    }
+                    M3MTA::Log->trace("DSN is: [$dsn]");
+	                M3MTA::Log->trace("SENT: MAIL FROM:" . $f);
+	                print $socket "MAIL FROM:" . $f . "\r\n";
 	                $state = 'mail';
 	            } elsif ($state eq 'mail') {
-	                M3MTA::Log->trace("SENT: RCPT TO:<$to>");
-	                print $socket "RCPT TO:<$to>\r\n";
+                    my $t = "<$to>";
+                    if($dsn) {
+                        if($to->params->{NOTIFY}) {
+                            $t .= " NOTIFY=" . $to->params->{NOTIFY};
+                        }
+                        if($to->params->{ORCPT}) {
+                            $t .= " ORCPT=" . $to->params->{ORCPT};
+                        }
+                    }
+	                M3MTA::Log->trace("SENT: RCPT TO:$t");
+	                print $socket "RCPT TO:$t\r\n";
 	                $state = 'rcpt';
 	            } elsif ($state eq 'rcpt') {
 	                M3MTA::Log->trace("SENT: DATA");
@@ -127,8 +174,8 @@ sub send {
     }
 
     if(!$success) {
-    	M3MTA::Log->debug("No MX hosts responded for domain $domain: " . (join ', ', @ordered));
-        $$error = "No MX hosts responded for domain $domain: " . (join ', ', @ordered);
+    	M3MTA::Log->debug("No MX hosts responded for domain " . $to->domain . ": " . (join ', ', @ordered));
+        $$error = "No MX hosts responded for domain " . $to->domain . ": " . (join ', ', @ordered);
         return -1; # retryable
     }
 
