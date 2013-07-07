@@ -30,7 +30,9 @@ sub send {
     	if(!$a) {
 	        $$error = "No MX or A record found for domain " . $to->domain;
 	        M3MTA::Log->debug("Message relay failed, no MX or A record for domain " . $to->domain);
-	        return -2; # permanent failure, no hostname
+	        return {
+                code => -2 # permanent failure, no hostname
+            };
     	}
 
     	M3MTA::Log->debug("Using A record in place of missing MX record");
@@ -67,8 +69,12 @@ sub send {
     if(scalar @ordered == 0) {
     	$$error = "No destination hosts found for domain " . $to->domain;
         M3MTA::Log->debug("Message relay failed, no valid destination hosts found");
-        return -3; # permanent failure, no hostname after filter
+        return {
+            code => -3 # permanent failure, no hostname after filter
+        };
     }
+
+    my $extensions = {};
 
     my $success = 0;
     for my $host (@ordered) {
@@ -91,16 +97,27 @@ sub send {
 
 	            M3MTA::Log->trace("RECD: data[$data], cmd[$cmd], wait[$wait], arg[$arg]");
 
-                # In helo mode (after EHLO), see if we have a 220 line
-                $dsn = 1 if $state eq 'helo' && $arg =~ /DSN/;
-                $size = 1 if $state eq 'helo' && $arg =~ /SIZE/;
-                $auth = 1 if $state eq 'helo' && $arg =~ /AUTH/;
-                if($state eq 'helo' && !$wait && $cmd =~ /250/) {
-                    $state = 'ehlo';
-                }
+                # Capture EHLO resposes
+                if($state eq 'helo') {
+                    if($arg =~ /DSN/) {
+                        $dsn = 1;
+                        $extensions->{DSN} = 1;
+                    }
 
-                # If we have, either the state has changed (and we sent MAIL)
-                # or state is still 'helo' and we send a HELO instead
+                    if($arg =~ /SIZE/) {
+                        $extensions->{SIZE} = 1;
+                        $size = 1;
+
+                    }
+                    if($arg =~ /AUTH/) {
+                        $extensions->{AUTH} = 1;
+                        $auth = 1;
+                    }
+
+                    if(!$wait && $cmd =~ /250/) {
+                        $state = 'ehlo';
+                    }
+                }
 
 	            if($wait) {
 	                M3MTA::Log->trace("Waiting for next line");
@@ -176,11 +193,16 @@ sub send {
     if(!$success) {
     	M3MTA::Log->debug("No MX hosts responded for domain " . $to->domain . ": " . (join ', ', @ordered));
         $$error = "No MX hosts responded for domain " . $to->domain . ": " . (join ', ', @ordered);
-        return -1; # retryable
+        return {
+            code => -1 # retryable
+        };
     }
 
     M3MTA::Log->debug("Message successfully relayed to $to");
-	return 1;
+	return {
+        code => 1,
+        extensions => $extensions,
+    };
 }
 
 #------------------------------------------------------------------------------

@@ -329,7 +329,7 @@ sub process_message {
 
         if($result == $M3MTA::Server::Backend::MDA::USER_NOT_FOUND) {
             # was a local delivery, but user didn't exist
-            if($message->from) {
+            if(!$message->from->null) {
                 M3MTA::Log->debug("Local delivery but no mailbox found, sending notification to " . $message->from);
                 $self->backend->notify($self->notification(
                     $message->from,
@@ -368,21 +368,35 @@ sub process_message {
         # so we can handle some extensions here, like DSN requested
         # when remote SMTP doesn't support it
 
-        if($res == -1) {
+        if($res->{code} == -1) {
             # all hosts timed out - requeueable
             M3MTA::Log->info("All hosts timed out, delivery failed, message re-queued");
-        } elsif ($res == -2 || $res == -3) {
+        } elsif ($res->{code} == -2 || $res->{code} == -3) {
             # permanent failure
             # -2 (no mx/a record), -3 (mx/a record but no hosts after filter)
             M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
             $message->remove_recipient($to);
-            # Causes infinite mail looping if message is from postmaster
-            #self->backend->notify($self->notification(
-            #   $message->from,
-            #   "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
-            #   "Your message to $dest could not be delivered.\r\n\r\nPermanent delivery failure: $error"
-            #);
-        } elsif ($res == 1) {
+
+            # RFC3461 5.2.2(c) - 'failed' DSN if NOTIFY=FAILED || !NOTIFY
+            if(!$message->from->null && (!$to->params->{NOTIFY} || $to->params->{NOTIFY} =~ /FAILED/)) {
+                $self->backend->notify($self->notification(
+                    $message->from,
+                    "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
+                    "Your message to $to could not be delivered.\r\n\r\nPermanent failure - no valid A/MX records found."
+                ));
+            }
+        } elsif ($res->{code} == 1) {
+            if(!$res->{extensions}->{DSN}) {
+                # RFC3461 5.2.2(b) - 'relayed' DSN if NOTIFY=SUCCESS
+                if(!$message->from->null && $to->params->{NOTIFY} && $to->params->{NOTIFY} =~ /SUCCESS/) {
+                    $self->backend->notify($self->notification(
+                        $message->from,
+                        "Message delivered for " . $message->id . ": " . $content->headers->{Subject},
+                        "Your message to $to has been successfully delivered."
+                    ));
+                } 
+            }
+
             $message->remove_recipient($to);
             M3MTA::Log->info("Message relayed using SMTP");
         }
