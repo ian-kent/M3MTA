@@ -364,10 +364,6 @@ sub process_message {
         );
         my $res = M3MTA::Client::SMTP->send($envelope, \$error);
 
-        # TODO get extension status from send (use $res as hash?)
-        # so we can handle some extensions here, like DSN requested
-        # when remote SMTP doesn't support it
-
         if($res->{code} == -1) {
             # all hosts timed out - requeueable
             M3MTA::Log->info("All hosts timed out, delivery failed, message re-queued");
