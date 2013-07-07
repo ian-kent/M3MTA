@@ -379,6 +379,19 @@ sub process_message {
                     "Your message to $to could not be delivered.\r\n\r\nPermanent failure - no valid A/MX records found."
                 ));
             }
+        } elsif ($res->{code} == -4) {
+            # 550 error in RCPT command
+            # RFC3461 (#WHICH) - 'failed' DSN if NOTIFY=FAILURE || !NOTIFY
+            M3MTA::Log->info("Remote delivery failed with permanent error, message dropped, notification sent to " . $message->{from});
+            $message->remove_recipient($to);
+
+            if(!$message->from->null && (!$to->params->{NOTIFY} || $to->params->{NOTIFY} =~ /FAILED/)) {
+                $self->backend->notify($self->notification(
+                    $message->from,
+                    "Message delivery failed for " . $message->id . ": " . $content->headers->{Subject},
+                    "Your message to $to could not be delivered.\r\n\r\n" . $res->{error}
+                ));
+            }
         } elsif ($res->{code} == 1) {
             if(!$res->{extensions}->{DSN}) {
                 # RFC3461 5.2.2(b) - 'relayed' DSN if NOTIFY=SUCCESS

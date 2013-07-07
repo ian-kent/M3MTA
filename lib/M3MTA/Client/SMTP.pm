@@ -168,6 +168,16 @@ sub send {
 	                print $socket "RCPT TO:$t\r\n";
 	                $state = 'rcpt';
 	            } elsif ($state eq 'rcpt') {
+                    if($cmd =~ /550/) {
+                        M3MTA::Log->debug("550 error from remote SMTP: $arg");
+                        $socket->close;
+                        return {
+                            code => -4,
+                            extensions => $extensions,
+                            error => $arg,
+                        };
+                    }
+
 	                M3MTA::Log->trace("SENT: DATA");
 	                print $socket "DATA\r\n";
 	                $state = 'data';
