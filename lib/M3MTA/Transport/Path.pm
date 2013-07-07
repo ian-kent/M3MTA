@@ -77,8 +77,8 @@ sub to_json {
 
 	return {
 		relays => $self->relays,
-		mailbox => $self->mailbox,
-		domain => $self->domain,
+		mailbox => $self->mailbox // '',
+		domain => $self->domain // '',
 		params => $self->params,
 	};
 }

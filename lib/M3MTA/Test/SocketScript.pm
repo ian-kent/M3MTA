@@ -12,6 +12,8 @@ use Test::More;
 #	  [=host]
 # inserts the value captured in the earlier 'host' regex
 
+my $DEBUG = 0;
+
 sub get_socket {
 	my ($class, $host, $port) = @_;
 
