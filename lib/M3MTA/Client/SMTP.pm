@@ -11,6 +11,8 @@ use M3MTA::Log;
 
 sub send {
 	my ($self, $envelope, $error) = @_;
+
+    # TODO deal with anything in params on to/from address
     
     # TODO support multiple recipients
 	my $to = $envelope->to->[0];

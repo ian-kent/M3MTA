@@ -314,6 +314,16 @@ sub process_message {
             # Local delivery was successful
             M3MTA::Log->debug("Local delivery was successful, removing recipient $to");
             $message->remove_recipient($to);
+
+            # RFC3461 5.2.3(abc) - 'delivered' DSN if NOTIFY=SUCCESS | !NOTIFY
+            if(!$message->from->null && (!$to->params->{NOTIFY} || $to->params->{NOTIFY} =~ /SUCCESS/)) {
+                $self->backend->notify($self->notification(
+                    $message->from,
+                    "Message delivered for " . $message->id . ": " . $content->headers->{Subject},
+                    "Your message to $to has been successfully delivered."
+                ));
+            }
+
             next;
         }
 
