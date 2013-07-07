@@ -175,7 +175,7 @@ sub data {
     # We only end up here if enforce is enabled
 
     # Unless size was given in MAIL command, do nothing
-    if($session->stash('rfc1870_size')) {
+    if($session->stash('mail_params')->{SIZE}) {
         # Capture the new state to sink data
         if($session->state eq 'DATA_RFC1870') {
             $session->error("DATA_RFC1870 state");
@@ -198,7 +198,7 @@ sub data {
         my $d = $session->stash('data') . $session->buffer;
         $d =~ s/\r\n\.\r\n$//s;
         my $len = length($d);
-        my $max = $session->stash('rfc1870_size');
+        my $max = $session->stash('mail_params')->{SIZE};
 
         if($len > $max) {
             # Don't bother calling RFC5321, we'll just wait until the end

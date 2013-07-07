@@ -131,6 +131,11 @@ sub mail {
         }
     }
 
+    if(my $rfc = $session->smtp->has_rfc('RFC3461')) {
+        # Fall back to RFC3461 (DSN) if it exists
+        return $rfc->mail($session, $data);
+    }
+
     if(my $rfc = $session->smtp->has_rfc('RFC1870')) {
         # Fall back to RFC1870 (SIZE) if it exists
         return $rfc->mail($session, $data);

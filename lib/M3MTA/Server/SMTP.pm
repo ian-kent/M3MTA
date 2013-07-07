@@ -14,6 +14,7 @@ use M3MTA::Server::SMTP::RFC5321; # Basic/Extended SMTP
 use M3MTA::Server::SMTP::RFC1870; # SIZE extension
 use M3MTA::Server::SMTP::RFC2487; # STARTTLS extension
 use M3MTA::Server::SMTP::RFC2920; # PIPELINING extension
+use M3MTA::Server::SMTP::RFC3461; # DSN extension
 use M3MTA::Server::SMTP::RFC4954; # AUTH extension
 
 # TODO
@@ -39,6 +40,7 @@ sub BUILD {
     M3MTA::Server::SMTP::RFC1870->new->register($self); # SIZE extension
     M3MTA::Server::SMTP::RFC2487->new->register($self); # STARTTLS extension
     M3MTA::Server::SMTP::RFC2920->new->register($self); # PIPELINING extension
+    M3MTA::Server::SMTP::RFC3461->new->register($self); # DSN extension
     M3MTA::Server::SMTP::RFC4954->new->register($self); # AUTH extension
 }
 
