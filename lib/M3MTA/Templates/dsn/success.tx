@@ -1,0 +1,63 @@
+Return-Path: <<: $return_path :>>
+X-Original-To: <: $original_to :>
+Delivered-To: <: $delivered_to :>
+:# Received header is added by queue
+Date: <: $date :>
+From: <: $from :> (Mail Delivery System)
+Subject: Successful Mail Delivery Report
+To: <: $to :>
+Auto-Submitted: auto-replied
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status;
+	boundary="<: $boundary :>"
+Content-Transfer-Encoding: 7bit
+Message-Id: <: $message_id | raw :>
+
+This is a MIME-encapsulated message.
+
+--<: $boundary | raw :>
+Content-Description: Notification
+Content-Type: text/plain; charset=us-ascii
+
+This is the mail system at host <: $host | raw :>
+
+Your message was successfully delivered to the destination(s)
+listed below. If the message was delivered to mailbox you will
+receive no further notifications. Otherwise you may still receive
+notifications of mail delivery errors from other systems.
+
+                   The mail system
+
+: for $recipients -> $recipient {
+<: $recipient.address | raw:>: <: $recipient.status | raw :>
+: }
+
+--<: $boundary | raw :>
+Content-Description: Delivery report
+Content-Type: message/delivery-status
+
+Reporting-MTA: <: $reporting_mta | raw :>
+Original-Envelope-Id: <: $original_env_id | raw :>
+X-M3MTA-Queue-ID: <: $queue_id | raw :>
+X-M3MTA-Sender: <: $sender | raw :>
+Arrival-Date: <: $arrival_date | raw :>
+
+Final-Recipient: <: $final_recipient | raw :>
+Original-Recipient: <: $original_recipient | raw :>
+Action: <: $action | raw :>
+Status: <: $status | raw :>
+Diagnostic-Code: <: $diagnostic_code | raw :>
+
+--<: $boundary | raw :>
+: if $headers_only {
+Content-Description: Message Headers
+Content-Type: text/rfc822-headers
+: } else {
+Content-Description: Original Message
+Content-Type: text/rfc822-message
+: }
+Content-Transfer-Encoding: 7bit
+
+<: $original_content | raw :>
+
+--<: $boundary | raw :>--

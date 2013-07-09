@@ -27,8 +27,15 @@ use M3MTA::Storage::Message::Attempt;
 
 use M3MTA::Storage::Mailbox::Message::Content;
 
+use File::Basename 'dirname';
+use File::Spec::Functions 'catfile';
+use Text::Xslate;
+
+our $dsn_path = catfile dirname(__FILE__), 'Templates/dsn';
+
 has 'config' => ( is => 'rw' );
 has 'backend' => ( is => 'rw', isa => 'M3MTA::Server::Backend::MDA' );
+has 'xslate' => ( is => 'rw', isa => 'Text::Xslate' );
 
 # Debug
 has 'debug'         => ( is => 'rw', default => sub { $ENV{M3MTA_DEBUG} // 1 } );
@@ -68,84 +75,53 @@ sub BUILD {
             M3MTA::Log->debug("Filter successfully registered");
         }
     }
+
+    $self->xslate(Text::Xslate->new(path => $dsn_path));
 }
 
 #------------------------------------------------------------------------------
 
-sub dsn {
-    my ($self, $to, $args) = @_;
+# TODO failure/delay dsn
 
-    my $orig_received = $args->{received} // 'Unknown received date';
-    my $orig_from = $args->{from} // 'Unknown sender';
-    my $error = $args->{error} // 'Unknown error';
-    my $deleted = $args->{deleted} // 0;
-    my $action = $args->{action} // 'unknown';
-    my $status = $args->{status} // '4.0.0';
-    my $diagnostic = $args->{diagnostic} // 'unknown error';
-    my $last_attempt = $args->{last_attempt} // 'unknown date';
-    my $content = $args->{content} // '[No message]';
+sub successful_dsn {
+    my ($self, $message) = @_;
 
-    my $reporting_mta = $self->config->{hostname};
+    my %params = (
+        return_path => 'M3MTA-MAILER-DAEMON',
+        original_to => $message->to,
+        delivered_to => $message->to,
+        date => DateTime->now,
+        from => 'postmaster@m3mta',
+        to => $message->from,
+        boundary => luniqid . '.' . luniqid . '/' . $self->config->{hostname},
+        message_id => luniqid . "@" . $self->config->{hostname},
+        host => $self->config->{hostname},
+        recipients => [ { address => $message->to, status => 'Message delivered successfully'} ],
+        reporting_mta => 'M3MTA',
+        original_env_id => $message->from->params->{ENVID},
+        queue_id => $message->{_id},
+        sender => 'postmaster@m3mta',
+        arrival_date => $message->created,
+        final_recipient => $message->to,
+        original_recipient => $message->to,
+        action => 'Delivered',
+        status => '2.0.0',
+        diagnostic_code => 'Delivered to local mailbox',
+        headers_only => 0,
+        original_content => $message->data,
+    );
 
-    my $msg_id = luniqid . "@" . $self->config->{hostname};
-    my $msg_date = DateTime->now;
-    my $mail_date = email_date;
-    my $msg_from = $self->config->{postmaster} // "postmaster\@m3mta.mda";
-
-    my $subject = 'Delivery status notification';
-
-    my $boundary = luniqid . '.' . luniqid . '/' . $self->config->{hostname};    
-
-    my $msg_data = <<EOF
-Message-ID: $msg_id\r
-Date: $mail_date\r
-User-Agent: M3MTA/MDA\r
-MIME-Version: 1.0\r
-To: $to\r
-From: $msg_from\r
-Subject: $subject\r
-Content-Type: multipart/report; report-type=delivery-status; boundary=$boundary\r
-\r
-\r
---$boundary\r
-The original message was received at $orig_received from $orig_from\r
-\r
-    ----- The following addresses had delivery problems -----\r
-<$orig_received>... $error\r
-\r
-\r
---$boundary\r
-Content-Type: message/delivery-status\r
-\r
-Reporting-MTA: dns; $reporting_mta\r
-\r
-Original-Recipient: rfc822;$to\r
-Final-Recipient: rfc822;$to\r
-Action: $action\r
-Status: $status\r
-Diagnostic-Code: smtp; $diagnostic\r
-Last-Attempt-Date: $last_attempt\r
-\r
-\r
---$boundary\r
-Content-Type: message/rfc822\r
-\r
-$content\r
-\r
---$boundary--\r
-EOF
-;
-    $msg_data =~ s/\r?\n\./\r\n\.\./gm;
+    my $msg_data = $self->xslate->render('success.tx', \%params);
 
     my $msg = M3MTA::Storage::Message->new;
-    $msg->created($msg_date);
+    $msg->created(DateTime->now);
     $msg->status('Pending');
     $msg->data($msg_data);
     $msg->helo('localhost');
-    $msg->id($msg_id);
-    $msg->from(M3MTA::Transport::Path->new->from_text($msg_from));
-    $msg->to([M3MTA::Transport::Path->new->from_json($to)]);
-    $msg->delivery_time($msg_date);
+    $msg->id($params{message_id});
+    $msg->from(M3MTA::Transport::Path->new->from_text('postmaster@m3mta'));
+    $msg->to([$message->from]);
+    $msg->delivery_time(DateTime->now);
     return $msg;
 }
 
@@ -396,20 +372,7 @@ sub process_message {
 
             # RFC3461 5.2.3(abc) - 'delivered' DSN if NOTIFY=SUCCESS
             if(!$message->from->null && $to->params->{NOTIFY} && $to->params->{NOTIFY} =~ /SUCCESS/) {
-                $self->backend->notify($self->dsn(
-                    $message->from,
-                    {
-                        received => $message->created,
-                        from => $message->from,
-                        error => undef,
-                        deleted => 0,
-                        action => 'delivered',
-                        status => '2.0.0',
-                        diagnostic => undef,
-                        last_attempt => undef,
-                        content => $message->data,
-                    }
-                ));
+                $self->backend->notify($self->successful_dsn($message));
             }
             next;
         }

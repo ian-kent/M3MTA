@@ -24,6 +24,8 @@ CURRENT SUPPORT
             - optionally require a TLS connection for all (including local) delivery
         - RFC2920 PIPELINING
             - broadcasts PIPELINING support
+        - RFC3461 DSN
+            - partial support for delivery status notifications
         - RFC4616 SASL PLAIN
             - implements the SASL PLAIN mechanism for RFC4954
         - RFC4954 AUTH
@@ -69,6 +71,7 @@ REQUIREMENTS
             MongoDB
             Net::DNS::Resolver
             Readonly
+            Text::Xslate
 
 INSTALLATION
 ------------
